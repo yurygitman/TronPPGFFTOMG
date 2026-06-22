@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BREATHRATE · Single-Sensor Validation Engine</title>
+<style>
+  :root{
+    --bg:#0c1017; --panel:#161b22; --panel2:#0c1017; --border:#30363d; --grid:#21262d;
+    --ink:#c9d1d9; --label:#8b949e;
+    --red:#ff7b72; --green:#7ee787; --blue:#58a6ff; --purple:#d2a8ff; --amber:#e3b341;
+    --good:#7ee787; --warn:#e3b341; --bad:#ff7b72;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:18px;background:var(--bg);color:var(--ink);
+       font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:13px}
+  h1{font-size:18px;margin:0;color:var(--blue);font-weight:700}
+  h2{font-size:13px;margin:0 0 12px;font-weight:700;letter-spacing:.02em}
+  .sub{font-weight:normal;color:var(--label)}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .mut{color:var(--label)}
+  .tiny{font-size:10px;color:var(--label)}
+  .blink{animation:blink 1.5s linear infinite}@keyframes blink{50%{opacity:0}}
+
+  header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+         background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px}
+  header .tag{font-size:11px;color:var(--label);margin-top:3px}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .chip{display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:7px;background:var(--panel2);
+        border:1px solid var(--border);font-size:11px;color:var(--label)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--border)}
+  .btn{padding:8px 15px;border-radius:7px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;
+       border:1px solid var(--border);background:var(--panel2);color:var(--ink)}
+  .btn.primary{background:var(--green);color:#0c1017;border-color:var(--green)}
+  .heart{display:inline-block;color:var(--red);transition:transform .09s ease-out}
+  .heart.pulse{transform:scale(1.55)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+  .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px}
+  @media(max-width:1100px){.grid3{grid-template-columns:1fr}.cards{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
+
+  /* always-on top strip */
+  .topstrip{display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:18px;margin-bottom:18px}
+  @media(max-width:1100px){.topstrip{grid-template-columns:1fr}}
+  .big{font-size:40px;font-weight:700;line-height:1;margin:2px 0 0}
+  .bigunit{font-size:15px;font-weight:400;color:var(--label)}
+  .qline{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:6px;font-size:11px}
+  .bar{width:100%;height:8px;border-radius:5px;background:var(--panel2);border:1px solid var(--border);overflow:hidden;margin-top:5px}
+  .bar>div{height:100%;width:0;transition:width .3s,background .3s}
+  .subbars{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:12px}
+  .sb{display:flex;align-items:center;gap:7px;font-size:10px}
+  .sb .lab{width:74px;color:var(--label);text-transform:uppercase;letter-spacing:.04em}
+  .sb .minibar{flex:1;height:5px;border-radius:3px;background:var(--panel2);border:1px solid var(--border);overflow:hidden}
+  .sb .minibar>div{height:100%;width:0;background:var(--green);transition:width .3s}
+
+  .wave-wrap{height:170px;position:relative}
+  .fft-wrap{height:360px;position:relative}
+  .hero-wrap{height:448px;position:relative}
+  @media(max-width:820px){.hero-wrap{height:320px}}
+  .wave-wrap>canvas,.fft-wrap>canvas,.hero-wrap>canvas,.pulse-wrap>canvas{width:100%;height:100%;display:block}
+  .panel.hero{background:linear-gradient(180deg,#0e1420,#0a0d13);border-color:#2b3650}
+  /* live-pulse hero */
+  .pulse-grid{display:grid;grid-template-columns:226px 1fr;gap:18px;align-items:stretch}
+  @media(max-width:820px){.pulse-grid{grid-template-columns:1fr}}
+  .pulse-wrap{height:244px;position:relative}
+  .pulse-readout{display:flex;flex-direction:column;justify-content:center;padding:4px 2px}
+  .bpm-big{font-size:64px;font-weight:700;line-height:.92;font-family:'Courier New',monospace;color:var(--label)}
+  .bpm-big .heart{font-size:30px;vertical-align:6px;margin-right:8px}
+  .bpm-unit{font-size:11px;color:var(--label);letter-spacing:.14em;margin-top:2px}
+  .ibi-line{font-size:14px;color:var(--blue);margin-top:12px}
+  .ibi-line .k{color:var(--label);font-size:10px;letter-spacing:.06em}
+  .lock-pill{display:inline-block;width:fit-content;font-size:10px;font-weight:700;padding:5px 11px;border-radius:20px;
+             border:1px solid var(--border);color:var(--label);margin-top:12px;letter-spacing:.05em}
+  .ampbar-lab{font-size:10px;color:var(--label);text-transform:uppercase;letter-spacing:.07em;margin-top:16px}
+  .ampbar{width:100%;max-width:200px;height:9px;border-radius:6px;background:var(--panel2);border:1px solid var(--border);overflow:hidden;margin-top:5px}
+  .ampbar>div{height:100%;width:0;background:var(--green);transition:width .12s,background .3s}
+  #hud{position:fixed;right:14px;bottom:14px;width:272px;height:182px;z-index:60;pointer-events:none;
+       border-radius:9px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.5))}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--label)}
+  .legend span b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .cap{font-size:10px;color:var(--label);margin-top:8px}
+
+  /* breathing panel */
+  .breath-stage{display:flex;justify-content:center;align-items:center;height:148px}
+  #person{transform-box:fill-box;transform-origin:center center;transition:transform .08s linear}
+  #breathOrb{fill:var(--red)} #breathRing{fill:none;stroke:var(--red);stroke-width:2;opacity:.35}
+  #person *{fill:var(--ink)}
+  .breath-readout{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px}
+  #breathWord{font-size:22px;font-weight:700;letter-spacing:.07em}
+  #breathRate{font-size:12px;color:var(--label)}
+  .badge{display:inline-block;font-size:10px;padding:3px 8px;border-radius:20px;border:1px solid var(--border);margin-top:8px}
+  .resp-trace{width:100%;height:42px;display:block;margin-top:8px}
+
+  /* metric cards */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--label)}
+  .value{font-size:28px;font-weight:700;margin:5px 0 0;line-height:1}
+  .unit{font-size:12px;font-weight:400;color:var(--label)}
+  .hint{font-size:10px;color:var(--label);margin-top:3px}
+  .spark{width:100%;height:34px;display:block;margin-top:8px}
+
+  /* validation panel */
+  .vrow{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--grid)}
+  .vrow:last-child{border-bottom:none}
+  .pill{font-size:10px;font-weight:700;padding:3px 8px;border-radius:5px;white-space:nowrap;min-width:54px;text-align:center}
+  .pill.pass{background:rgba(126,231,135,.15);color:var(--good);border:1px solid var(--good)}
+  .pill.warn{background:rgba(227,179,65,.13);color:var(--warn);border:1px solid var(--warn)}
+  .pill.fail{background:rgba(255,123,114,.13);color:var(--bad);border:1px solid var(--bad)}
+  .vmeta{flex:1}
+  .vmeta .vt{font-size:11px;font-weight:700}
+  .vmeta .vr{font-size:10px;color:var(--label);margin-top:2px}
+  .vmeta .vs{font-size:10px;color:var(--label);float:right}
+  .vbar{position:relative;height:5px;border-radius:3px;background:var(--panel2);border:1px solid var(--border);overflow:hidden;margin-top:5px}
+  .vbar-fill{height:100%;width:0;background:var(--bad);transition:width .25s,background .25s}
+  .vbar-pass{position:absolute;right:0;top:-1px;bottom:-1px;width:2px;background:var(--good);opacity:.7;z-index:1}
+  .sens-toggle{float:right;font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--label);border:1px solid var(--border);
+               border-radius:5px;padding:2px 7px;cursor:pointer;user-select:none}
+  /* breathing pacer strip */
+  .pacer{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--blue);border-radius:10px;
+         padding:10px 16px;margin-bottom:18px}
+  .pacer .pword{font-size:18px;font-weight:700;letter-spacing:.06em;min-width:128px;font-family:'Courier New',monospace}
+  .pacer .ptrack{flex:1;height:14px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);overflow:hidden}
+  .pacer .pfill{height:100%;width:0;background:var(--blue)}
+  .pacer .prate{font-size:10px;color:var(--label);letter-spacing:.04em;white-space:nowrap}
+
+  .diag ul{list-style:none;margin:0;padding:0}
+  .diag li{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}
+  .raw{margin-top:12px;padding:9px 11px;border-radius:7px;background:var(--panel2);border:1px solid var(--border);font-size:11px;word-break:break-all}
+  footer{margin-top:18px;padding:14px 18px;border-radius:10px;background:var(--panel);border:1px solid var(--border);
+         font-size:10px;color:var(--label);line-height:1.7}
+  footer strong{color:var(--ink)}
+  .cn{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.2em;color:#7df9ff;border:1px solid #2bd6e6;
+      border-radius:5px;padding:2px 8px;margin-left:8px;background:rgba(45,214,230,.07);
+      box-shadow:0 0 10px rgba(45,214,230,.4);text-shadow:0 0 7px rgba(125,249,255,.8);vertical-align:2px}
+</style>
+</head>
+<body>
+
+  <canvas id="hud" width="272" height="182"></canvas>
+
+  <div id="dashWarn" style="display:none;background:rgba(227,179,65,.12);border:1px solid var(--amber);color:var(--amber);border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:16px"></div>
+
+  <header>
+    <div style="display:flex;align-items:center;gap:13px">
+      <span class="heart" id="hdrHeart" style="font-size:26px">&#9829;</span>
+      <div>
+        <h1>📊 BREATHRATE · Live Engine <span style="font-size:12px;font-weight:400;color:var(--label)">(no simulation)</span><span class="cn">⬡ TRON</span></h1>
+        <div class="tag">Cardiorespiratory signal processing — D. John Doyle, MD, PhD · every value is live from the USB-connected PulseSensor · <span style="color:var(--label)">codename Tron · released 2026-06-19</span></div>
+      </div>
+    </div>
+    <div class="controls">
+      <a class="btn" id="setupLink" href="./index.html" style="text-decoration:none" title="Back to setup &amp; flashing instructions">← Setup</a>
+      <div class="chip"><span class="dot" id="statusDot"></span><span id="statusText">NOT CONNECTED</span>
+        <span style="color:var(--border)">|</span><span id="uptime">—</span>
+        <span style="color:var(--border)">|</span><span>115200</span></div>
+      <button class="btn" id="hudBtn" title="Toggle the performance / resource HUD (or press D)">▥ Stats</button>
+      <button class="btn" id="beatBtn" title="Beat detector — Auto: robust adaptive detection in the browser (recommended). Sensor: the raw PulseSensor-library beat flag from the firmware.">&#9829; Beats: Auto</button>
+      <button class="btn" id="pacerBtn" title="Show a 6/min breathing guide — follow it to drive RSA + a sharp spectral peak and validate">🫁 Pace</button>
+      <button class="btn primary" id="connectBtn">Connect</button>
+    </div>
+  </header>
+
+  <!-- breathing pacer (clock-driven guide, not data) — follow to drive the validator -->
+  <div class="pacer" id="pacerBar" style="display:none">
+    <span class="pword" id="pacerWord" style="color:var(--green)">BREATHE IN</span>
+    <div class="ptrack"><div class="pfill" id="pacerFill"></div></div>
+    <span class="prate">🫁 PACER · 6 / min (5s in · 5s out) — a guide, not sensor data · follow it to validate</span>
+  </div>
+
+  <!-- HERO: live cardiac waveform + real-time beat detection -->
+  <div class="panel hero">
+    <h2 style="color:var(--green)">&#9829; LIVE PULSE · beat detection <span class="sub">— cardiac waveform with real-time beats &amp; adaptive trigger</span></h2>
+    <div class="pulse-grid">
+      <div class="pulse-readout">
+        <div class="bpm-big"><span class="heart" id="pulseHeartBig">&#9829;</span><span id="bpmHero">—</span></div>
+        <div class="bpm-unit">BEATS / MIN</div>
+        <div class="ibi-line"><span id="ibiHero">—</span> <span class="k">ms IBI</span></div>
+        <div class="lock-pill" id="lockHero">SEARCHING</div>
+        <div class="ampbar-lab">pulse strength</div>
+        <div class="ampbar"><div id="ampHero"></div></div>
+      </div>
+      <div class="pulse-wrap"><canvas id="pulseHero"></canvas></div>
+    </div>
+  </div>
+
+  <!-- HERO: live FFT rendered as a 3D isometric time-stream (waterfall) spectrum -->
+  <div class="panel hero">
+    <h2 style="color:var(--purple)">⚡ LIVE FFT · 3D TIME-STREAM SPECTRUM <span class="sub">— power × frequency, scrolling back through time</span></h2>
+    <div class="hero-wrap"><canvas id="fftHero"></canvas></div>
+    <div class="legend">
+      <span><b style="background:var(--red)"></b>Respiration 0.10–0.50 Hz · 6–30 br/min</span>
+      <span><b style="background:var(--green)"></b>Cardiac 0.70–3.0 Hz · 42–180 bpm</span>
+      <span style="color:var(--label)">freq → · time ↗ · power ↑ · ♥ beat · ▲ inhale ▼ exhale</span>
+    </div>
+  </div>
+
+  <!-- ALWAYS-ON STRIP: signal quality + confidence-in-quality, breathing confidence, system confidence -->
+  <div class="topstrip">
+
+    <div class="panel">
+      <h2 style="color:var(--green)">🩺 SIGNAL QUALITY <span class="sub">— always-on PPG quality index</span></h2>
+      <div class="big" id="sqiVal" style="color:var(--label)">0<span class="bigunit">%</span></div>
+      <div class="qline"><span id="sqiLabel" class="mut">No contact</span>
+        <span class="mut">conf <strong id="sqiConf" style="color:var(--ink)">0%</strong>
+          <span id="sqiBand">±0</span> · <span id="sqiConfLabel">settling</span></span></div>
+      <div class="bar"><div id="sqiBar" style="background:var(--bad)"></div></div>
+      <div class="subbars">
+        <div class="sb"><span class="lab">Perfusion</span><span class="minibar"><div id="barPerf"></div></span></div>
+        <div class="sb"><span class="lab">Beat reg.</span><span class="minibar"><div id="barJit"></div></span></div>
+        <div class="sb"><span class="lab">No clip</span><span class="minibar"><div id="barClip"></div></span></div>
+        <div class="sb"><span class="lab">Card. SNR</span><span class="minibar"><div id="barCard"></div></span></div>
+      </div>
+      <canvas id="sqiSpark" class="resp-trace" style="height:34px"></canvas>
+      <div class="cap">SQI = perfusion · beat regularity · no-clipping · cardiac SNR. Confidence = how settled that number is (data + stability).</div>
+    </div>
+
+    <div class="panel">
+      <h2 style="color:var(--red)">🫁 BREATHING <span class="sub">— RSA-anchored inhale / exhale</span></h2>
+      <div class="breath-stage">
+        <svg viewBox="0 0 240 200" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-label="breathing figure">
+          <circle id="breathRing" cx="120" cy="104" r="74"/>
+          <circle id="breathOrb"  cx="120" cy="104" r="56" opacity="0.12"/>
+          <g id="person">
+            <circle cx="120" cy="78" r="14"/>
+            <path id="torso" d="M99,130 Q99,100 120,98 Q141,100 141,130 L137,156 Q120,163 103,156 Z"/>
+          </g>
+        </svg>
+      </div>
+      <div class="breath-readout">
+        <span id="breathWord" style="color:var(--red)">—</span>
+        <span id="breathRate">…</span>
+      </div>
+      <div><span class="badge" id="polarityBadge" style="color:var(--label)">polarity: acquiring</span></div>
+      <div class="qline" style="margin-top:12px"><span class="mut">BREATHING CONFIDENCE</span>
+        <span><strong id="breathConf" style="color:var(--ink)">0%</strong>
+          <span id="ratePhase" class="tiny">rate 0% · phase 0%</span></span></div>
+      <div class="bar"><div id="breathBar" style="background:var(--bad)"></div></div>
+      <canvas id="respSpark" class="resp-trace"></canvas>
+    </div>
+
+    <div class="panel">
+      <h2 style="color:var(--purple)">🔬 FOUR-POINT VALIDATION
+        <span class="sens-toggle" id="sensBtn" title="Relaxed lowers every pass threshold ~35% — easier to validate with calm breathing">CLINICAL</span></h2>
+      <div class="tiny" style="margin:-4px 0 10px">Evidence your breathing is really being detected — each bar turns green when it’s steady enough. Press <b>🫁 Pace</b> and breathe along to fill them.</div>
+      <div id="vlist">
+        <div class="vrow"><span class="pill fail" id="v1pill">…</span>
+          <div class="vmeta"><span class="vs" id="v1score">—</span><div class="vt">AM Matrix · RIAV</div>
+          <div class="vr" id="v1reason">amplitude modulation depth</div>
+          <div class="vbar"><span class="vbar-pass"></span><div class="vbar-fill" id="v1bar"></div></div></div></div>
+        <div class="vrow"><span class="pill fail" id="v2pill">…</span>
+          <div class="vmeta"><span class="vs" id="v2score">—</span><div class="vt">Timing Matrix · RSA</div>
+          <div class="vr" id="v2reason">respiratory sinus arrhythmia</div>
+          <div class="vbar"><span class="vbar-pass"></span><div class="vbar-fill" id="v2bar"></div></div></div></div>
+        <div class="vrow"><span class="pill fail" id="v3pill">…</span>
+          <div class="vmeta"><span class="vs" id="v3score">—</span><div class="vt">Spectral Ratio · SNR</div>
+          <div class="vr" id="v3reason">resp peak vs noise floor</div>
+          <div class="vbar"><span class="vbar-pass"></span><div class="vbar-fill" id="v3bar"></div></div></div></div>
+        <div class="vrow"><span class="pill fail" id="v4pill">…</span>
+          <div class="vmeta"><span class="vs" id="v4score">—</span><div class="vt">Peak Prominence · Q</div>
+          <div class="vr" id="v4reason">spectral sharpness</div>
+          <div class="vbar"><span class="vbar-pass"></span><div class="vbar-fill" id="v4bar"></div></div></div></div>
+      </div>
+      <div class="qline" style="margin-top:14px"><span class="mut">SYSTEM CONFIDENCE:</span>
+        <span class="mut"><strong id="sysVerdict" style="color:var(--label)">UNVALIDATED</strong>
+          <span id="sysPct">0%</span></span></div>
+      <div class="bar"><div id="sysBar" style="background:var(--bad)"></div></div>
+    </div>
+
+  </div>
+
+  <!-- time-domain scopes -->
+  <div class="grid2">
+    <div class="panel">
+      <h2 style="color:var(--red)">🔴 TRACE A · Raw PPG <span class="sub">— baseline-wander envelope · dashed = TRIGGER 550 · dots = beats</span></h2>
+      <div class="wave-wrap"><canvas id="traceA"></canvas></div>
+      <div class="cap">Slow swing of the baseline (faint line) is RIIV — respiration imprinted on the DC level.</div>
+    </div>
+    <div class="panel">
+      <h2 style="color:var(--green)">🟢 TRACE B · AC-Coupled Cardiac <span class="sub">— signal minus baseline</span></h2>
+      <div class="wave-wrap"><canvas id="traceB"></canvas></div>
+      <div class="cap">High-pass of the raw signal: isolated pulse waveforms. Beat-to-beat height is RIAV; beat-to-beat timing is RSA.</div>
+    </div>
+  </div>
+
+  <!-- metric cards -->
+  <div class="cards">
+    <div class="card"><div class="label">BPM</div><div class="value" id="vBpm" style="color:var(--green)">—</div>
+      <div class="hint">Heart rate (10-beat avg)</div><canvas class="spark" id="bpmSpark"></canvas></div>
+    <div class="card"><div class="label">IBI</div><div class="value" id="vIbi" style="color:var(--blue)">—<span class="unit"> ms</span></div>
+      <div class="hint">Inter-beat interval</div><canvas class="spark" id="ibiSpark"></canvas></div>
+    <div class="card"><div class="label">Signal</div><div class="value" id="vSig" style="color:var(--amber)">—</div>
+      <div class="hint">Raw sample (0–1023)</div><canvas class="spark" id="sigSpark"></canvas></div>
+    <div class="card"><div class="label">Resp Rate <span style="color:var(--red)">●</span></div><div class="value" id="vRr" style="color:var(--red)">—<span class="unit"> br/min</span></div>
+      <div class="hint">Fused RIIV+RIAV+RSA</div><canvas class="spark" id="rrSpark"></canvas></div>
+    <div class="card"><div class="label">RSA <span style="color:var(--blue)">●</span></div><div class="value" id="vRsa" style="color:var(--blue)">—<span class="unit"> ms</span></div>
+      <div class="hint">IBI spread, last 10 beats</div><canvas class="spark" id="rsaSpark"></canvas></div>
+    <div class="card"><div class="label">Amp Var <span style="color:var(--purple)">●</span></div><div class="value" id="vAmp" style="color:var(--purple)">—<span class="unit"> %</span></div>
+      <div class="hint">Pulse-height variability</div><canvas class="spark" id="ampSpark"></canvas></div>
+  </div>
+
+  <!-- diagnostics -->
+  <div class="panel diag">
+    <h2>Live Signal Diagnostics</h2>
+    <ul>
+      <li><span class="mut">Contact / signal</span><span id="dContact" class="mut">—</span></li>
+      <li><span class="mut">Beat detection</span><span id="dLock" class="mut">Acquiring…</span></li>
+      <li><span class="mut">Beat source</span><span id="dBeatSrc" class="mut">Auto · software</span></li>
+      <li><span class="mut">Cardiac SNR</span><span id="dSnr" class="mut">— dB</span></li>
+      <li><span class="mut">Respiration</span><span id="dResp" class="mut">—</span></li>
+      <li><span class="mut">Beat</span><span><span id="dBeat" class="mut">0</span> <span class="heart" id="diagHeart">&#9829;</span></span></li>
+    </ul>
+    <div class="raw"><span class="mut">raw &gt; </span><span id="rawLine" style="color:var(--green)">waiting for stream…</span></div>
+  </div>
+
+  <footer>
+    <p>&gt; <strong>LIVE DATA ONLY — no simulation.</strong> Wiring: <strong>Signal → GPIO1 (A0/D0) · + → 3V3 · − → GND</strong>. Upload <strong>PulseSensor_WebSerial_Plus.ino</strong> (streams <strong>signal,bpm,ibi,beat,amp,inside</strong>), close any Serial Monitor, then <strong>Connect</strong>. Chrome / Edge / Brave on desktop only. Nothing on this page moves until real samples arrive; on disconnect or signal loss every panel blanks to NOT CONNECTED / NO SIGNAL.</p>
+    <p>&gt; Inhale/exhale is anchored to <strong>respiratory sinus arrhythmia</strong> (heart rate rises on inhalation — the one physiologically fixed sign); RIIV baseline polarity is auto-calibrated against it. Everything here is <strong>derived in the browser from one optical sensor</strong> — a learning/biofeedback tool, <strong>not a medical device</strong>.</p>
+  </footer>
+
+<script>
+/* ============================================================================
+   BREATHRATE · Single-Sensor Validation Engine
+   Stream (115200, 50 Hz, 10-bit):  signal,bpm,ibi,beat,amp,inside
+   Three-R respiration fusion (RIIV baseline / RIAV amp / RIFV=RSA timing),
+   RSA-anchored inhale-exhale, breathing confidence, always-on SQI + meta-confidence.
+   ============================================================================ */
+
+/* ---- constants ---- */
+const FS=50, DISPLAY_LEN=240, FFT_N=512, THRESHOLD=550;
+const RESP_WIN=40, DC_ALPHA=0.006;          // existing RIIV front-end (kept)
+const RESP_DECIM=12;                         // 50 -> ~4.17 Hz grid
+const RESP_FS=FS/RESP_DECIM;                 // ~4.1667 Hz
+const RESP_FFT_N=256;                        // Hann FFT on the 4 Hz grid
+const F_LO=0.10, F_HI=0.50;                  // respiratory band (Hz)
+const A_FAST=0.61, A_SLOW=0.12;              // diff-of-EMA band-pass (~0.6 / ~0.08 Hz)
+const A_MEAN=0.02, A_VAR=0.02, EPS=1e-6;     // running z-norm
+const POLAR_WIN=120, POLAR_LAG=6, A_RHO=0.05, POLAR_DB=0.20, FLIP_LOCK=10; // polarity
+const HIST_CAP=120;
+
+const COL={red:'#ff7b72',green:'#7ee787',blue:'#58a6ff',purple:'#d2a8ff',amber:'#e3b341',
+           grid:'#21262d',label:'#8b949e',ink:'#c9d1d9',panel2:'#0c1017'};
+const $=id=>document.getElementById(id);
+const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+function hexA(h,a){const x=h.replace('#','');return `rgba(${parseInt(x.substr(0,2),16)},${parseInt(x.substr(2,2),16)},${parseInt(x.substr(4,2),16)},${a})`;}
+function mean(a){return a.length?a.reduce((s,v)=>s+v,0)/a.length:0;}
+function std(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/a.length);}
+function median(a){if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function cap(arr,n){while(arr.length>n)arr.shift();}
+
+/* ---- live mode / serial ---- */
+let mode='off', port, reader, running=false, streamStart=0, lastLineTime=0;
+
+/* ---- 50 Hz buffers ---- */
+const rawDisp=new Array(DISPLAY_LEN).fill(480);
+const baseDisp=new Array(DISPLAY_LEN).fill(480);
+const acDisp=new Array(DISPLAY_LEN).fill(0);
+const radiusArr=new Array(DISPLAY_LEN).fill(0);
+const sigRing=new Array(FFT_N).fill(480); let ringPos=0, sampleCount=0;
+const sig3s=new Array(150).fill(480); let s3pos=0;
+const respWin=[]; let respSum=0, respDC=480;
+let respAccum=0, respAccumN=0, nSamp=0;
+
+/* ---- beat-derived ---- */
+const beatEvents=[];                 // {ts, hr(bpm), amp}
+const ibiHist=[], ampHist=[], beatTimes=[];
+let lastBeatSamp=-1, lastBeatTime=0;
+let latestSig=480, latestBpm=0, latestIbi=0, latestBeat=0, latestInside=0, latestAmp=null, rawLine='';
+
+/* ---- adaptive software beat detector (default) ----
+   Works on the AC pulse (signal - boxcar baseline), so it is immune to DC drift.
+   Threshold is a fraction of the LIVE pulse envelope (not a fixed 550), with
+   hysteresis + a refractory window + a no-contact amplitude gate. This replaces
+   the firmware/PulseSensor-library fixed-threshold detector that false-fires on
+   the XIAO/ESP32 ADC. Toggle to 'sensor' to use the library's beat flag instead. */
+let beatSource='auto', swBpmLast=0, senBpmLast=0;
+let swAcSm=0, swEnv=1, swArmed=true, swLastBeatN=-1, swCycPk=-1e9, swCycMin=1e9;
+let swBpm=0, swIbi=0, swAmp=0, swInsideUntilN=-1;
+const swIbiHist=[];
+const SW_ATTACK=0.5, SW_DECAY=0.01, SW_THR_HI=0.5, SW_THR_LO=0.2, SW_MIN_ENV=22, SW_REFRAC=0.30;
+
+/* ---- render-engine / full-rate display / sample-rate state ---- */
+const DISP_N=600;                                   // full-rate scope ring
+const dispRaw=[], dispBase=[], dispBeat=[];
+let dispBaseEMA=480, pendingBeat=false;
+let fsMeasured=50, rxAccumN=0, rxAccumT=0, dspDecim=1, decimCnt=0, totalRx=0, totalBeats=0, dirtyTrace=false;
+const FFT_BARS=120;
+const fftRaw=new Float32Array(FFT_BARS), fftBand=new Uint8Array(FFT_BARS),
+      fftTarget=new Float32Array(FFT_BARS), fftBar=new Float32Array(FFT_BARS), fftPeak=new Float32Array(FFT_BARS);
+let respPkHz=0, cardPkHz=0, hudOn=false;   // dev perf HUD off by default for testers — Stats button reveals it
+let lastByteTime=0, gotValidLine=false;    // distinguish "silent port" vs "data arriving but wrong format"
+const SPECTRO_ROWS=46, ROW_MS=120;          // 3D waterfall history (~5.5 s)
+const spectro=[], spectroEv=[]; let rowHadBeat=false, lastRowT=0;
+function detectBeat(ac,n){
+  let beat=0;
+  swAcSm+=0.6*(ac-swAcSm);                 // light de-noise (keeps the fast upstroke)
+  const x=swAcSm;
+  swEnv+=(x>swEnv)?(x-swEnv)*SW_ATTACK:(x-swEnv)*SW_DECAY;   // fast-attack / slow-decay envelope
+  if(swEnv<1)swEnv=1;
+  if(x>swCycPk)swCycPk=x; if(x<swCycMin)swCycMin=x;
+  const thrHi=SW_THR_HI*swEnv, thrLo=SW_THR_LO*swEnv;
+  if(x<thrLo)swArmed=true;                  // re-arm only after the signal dips low
+  // dynamic refractory = 0.6 x last IBI (WorldFamousElectronics PulseSensor algorithm:
+  // wait 3/5 of the last IBI to reject the dicrotic-notch second hump), floored at 250 ms
+  const refrS=Math.max(0.25, 0.6*(swIbi>0?swIbi/1000:0.6));
+  const refr=(swLastBeatN<0)||((n-swLastBeatN)>refrS*FS);
+  if(swArmed && swEnv>=SW_MIN_ENV && x>=thrHi && refr){
+    swArmed=false;
+    if(swLastBeatN>=0){
+      const ibi=(n-swLastBeatN)/FS*1000;
+      if(ibi>=300 && ibi<=2000){
+        beat=1; swIbi=Math.round(ibi);
+        swIbiHist.push(ibi); if(swIbiHist.length>10)swIbiHist.shift();
+        const s=[...swIbiHist].sort((a,b)=>a-b); swBpm=Math.round(60000/s[s.length>>1]);
+        swAmp=Math.round(swCycPk-swCycMin); swInsideUntilN=n+Math.round(0.15*FS);
+      }
+    } else { beat=1; swInsideUntilN=n+Math.round(0.15*FS); }   // first crossing, no IBI yet
+    swLastBeatN=n; swCycPk=-1e9; swCycMin=1e9;
+  }
+  return {beat,bpm:swBpm,ibi:swIbi,amp:swAmp,inside:(n<swInsideUntilN)?1:0};
+}
+function resetBeatState(){
+  swAcSm=0;swEnv=1;swArmed=true;swLastBeatN=-1;swCycPk=-1e9;swCycMin=1e9;
+  swBpm=0;swIbi=0;swAmp=0;swInsideUntilN=-1;swIbiHist.length=0;
+  beatEvents.length=0;ibiHist.length=0;ampHist.length=0;beatTimes.length=0;lastBeatSamp=-1;
+}
+
+/* ---- 4 Hz grid state ---- */
+const bpRiiv={f:0,s:0,init:false}, bpRiav={f:0,s:0,init:false}, bpRsa={f:0,s:0,init:false};
+const znRiiv={mean:0,var:1,init:false}, znRiav={mean:0,var:1,init:false}, znRsa={mean:0,var:1,init:false};
+const riivZHist=[], riavZHist=[], rsaZHist=[], rHist=[], rsaBpHist=[], rrHist8=[], respTrace=[];
+let polarityR=1, rhoRbar=0, lastFlipR=-1e9, signA=0, rhoAbar=0, lastFlipA=-1e9;
+let wR=0.4, wA=0, wS=0;
+try{const lp=localStorage.getItem('br_polarityR'); if(lp==='1'||lp==='-1') polarityR=+lp;}catch(e){}
+
+/* ---- breathing state machine + phase ---- */
+let bsState='RISING', runPeak=-1e9, runTrough=1e9, tExt=0, ampEnv=0.6, recMax=0, recMin=0, recInit=false;
+let rmsRsq=1, dRema=0, drsq=1, Rprev=0, phi=0;
+let shortR2=0, longR2=0;
+const labelAgree=[];
+
+/* ---- spectral / confidence outputs ---- */
+let curSnr=null;
+let cardiacMag=new Array(40).fill(0), cardiacBinHz=FS/FFT_N;
+let respMag=new Array(140).fill(0), respBinHz=RESP_FS/RESP_FFT_N;
+let fused={fpk:0,Ppk:0,Nfloor:1,snr:-99,prom:0,Q:0,fwhm:1};
+let snrRiiv=-99,snrRiav=-99,snrRsa=-99,fRiiv=0,fRiav=0,fRsa=0;
+let B=0, ratePct=0, phasePct=0;
+let SQI=0, sqiRaw=0, sqiLabel='No contact';
+let M=0, sqiBand=0, mLabel='settling';
+let V=[0,0,0,0], vState=['fail','fail','fail','fail'], vReason=['','','',''], prog=[0,0,0,0];
+let validSens=1;            // 1 = clinical (strict), 0.65 = relaxed (easier to pass)
+let pacerOn=false;          // breathing pacer (6/min guide) on/off
+let SystemConf=0, sysBarVal=0, verdict='UNVALIDATED';
+let secondsOfData=0;
+let breathHold=false, breathWord='—';
+const sqiRawRing=[], sqiDispRing=[];
+
+/* ============================== 50 Hz INGEST ============================== */
+function parse(line){
+  const p=line.split(','); if(p.length<4) return;
+  const sig=+p[0], sBpm=+p[1], sIbi=+p[2], sBeat=+p[3]?1:0;
+  const sAmp=(p.length>4 && isFinite(+p[4]))?+p[4]:null;
+  const sInside=p.length>5?(+p[5]?1:0):0;
+  if(!isFinite(sig)) return;
+  const now=performance.now();
+  lastLineTime=now; gotValidLine=true; rawLine=line; latestSig=sig; totalRx++;
+  // (true sample rate fsMeasured is computed burst-immune in the engine loop)
+  // decimate to the DSP's internal 50 Hz so all DSP tuning holds at any sensor rate
+  if(++decimCnt>=dspDecim){ decimCnt=0; onSample(sig,sBpm,sIbi,sBeat,sAmp,sInside); }
+  // full-rate display ring drives the smooth 60 fps scope (beat marked by onSample)
+  dispBaseEMA+=0.02*(sig-dispBaseEMA);
+  dispRaw.push(sig); dispBase.push(dispBaseEMA); dispBeat.push(pendingBeat?1:0); pendingBeat=false;
+  if(dispRaw.length>DISP_N){dispRaw.shift();dispBase.shift();dispBeat.shift();}
+  dirtyTrace=true;
+}
+
+function onSample(sig,sBpm,sIbi,sBeat,sAmp,sInside){
+  nSamp++;
+  // RIIV front-end (boxcar baseline minus leaky DC)
+  respWin.push(sig); respSum+=sig; if(respWin.length>RESP_WIN) respSum-=respWin.shift();
+  const base=respSum/respWin.length;
+  respDC+=DC_ALPHA*(base-respDC);
+  const resp=base-respDC;
+  const ac=sig-base;
+
+  // adaptive software beat detection (runs always; used as source unless 'sensor')
+  const sw=detectBeat(ac,nSamp);
+  swBpmLast=sw.bpm; senBpmLast=sBpm;
+  let beat,bpm,ibi,amp,inside;
+  if(beatSource==='sensor'){ beat=sBeat;bpm=sBpm;ibi=sIbi;amp=sAmp;inside=sInside; }
+  else { beat=sw.beat;bpm=sw.bpm;ibi=sw.ibi;amp=sw.beat?sw.amp:null;inside=sw.inside; }
+  latestBpm=bpm; latestIbi=ibi; latestBeat=beat; latestInside=inside; if(amp!=null)latestAmp=amp;
+
+  // display traces
+  rawDisp.push(sig); rawDisp.shift();
+  baseDisp.push(base); baseDisp.shift();
+  acDisp.push(ac); acDisp.shift();
+  radiusArr.push(beat?6:inside?2.5:0); radiusArr.shift();
+  // cardiac FFT ring + clip/perfusion ring
+  sigRing[ringPos]=sig; ringPos=(ringPos+1)%FFT_N; if(sampleCount<FFT_N) sampleCount++;
+  sig3s[s3pos]=sig; s3pos=(s3pos+1)%sig3s.length;
+  // beat events (instantaneous HR; use local IBI before library locks)
+  if(beat){
+    pulseHeart(); pendingBeat=true; rowHadBeat=true; totalBeats++;
+    const localIbi=(lastBeatSamp>=0)?(nSamp-lastBeatSamp)/FS*1000:0;
+    let ibiUse=ibi>0?ibi:localIbi;
+    if(ibiUse>=300 && ibiUse<=2000){
+      beatEvents.push({ts:nSamp/FS, hr:60000/ibiUse, amp:(amp!=null?amp:(latestAmp||0))});
+      cap(beatEvents,40);
+      ibiHist.push(ibiUse); cap(ibiHist,10);
+    }
+    if(amp!=null && amp>0){ ampHist.push(amp); cap(ampHist,10); }
+    beatTimes.push(performance.now()); cap(beatTimes,20);
+    lastBeatSamp=nSamp; lastBeatTime=performance.now();
+  }
+  // decimate to the 4 Hz grid
+  respAccum+=resp; respAccumN++;
+  if(respAccumN>=RESP_DECIM){ const gv=respAccum/respAccumN; respAccum=0; respAccumN=0; onRespTick(gv, nSamp/FS); }
+}
+function pulseHeart(){['hdrHeart','diagHeart','pulseHeartBig'].forEach(id=>{const h=$(id);if(!h)return;h.classList.add('pulse');setTimeout(()=>h.classList.remove('pulse'),140);});}
+
+/* ---------- band-pass + z-norm helpers ---------- */
+function bp(st,x){ if(!st.init){st.f=st.s=x;st.init=true;} st.f+=A_FAST*(x-st.f); st.s+=A_SLOW*(x-st.s); return st.f-st.s; }
+function zn(st,x){ if(!st.init){st.mean=x;st.var=1;st.init=true;} const pm=st.mean; st.mean+=A_MEAN*(x-st.mean); const d=x-pm; st.var+=A_VAR*(d*d-st.var); return (x-st.mean)/Math.sqrt(st.var+EPS); }
+function interpBeat(field,t){
+  if(!beatEvents.length) return null;
+  let lo=null,hi=null;
+  for(const e of beatEvents){ if(e.ts<=t) lo=e; if(e.ts>=t && !hi) hi=e; }
+  if(lo&&hi&&hi.ts>lo.ts){ const f=(t-lo.ts)/(hi.ts-lo.ts); return lo[field]+f*(hi[field]-lo[field]); }
+  return (lo||hi)[field];   // sample-and-hold (causal: only past beats exist)
+}
+
+/* ============================== 4 Hz GRID CORE ============================== */
+function onRespTick(riivRaw, tSec){
+  const ampI=interpBeat('amp',tSec), hrI=interpBeat('hr',tSec);
+  const riivBp=bp(bpRiiv,riivRaw);
+  const riavBp=(ampI!=null)?bp(bpRiav,ampI):0;
+  const rsaBp =(hrI!=null )?bp(bpRsa,hrI ):0;
+  const riivZ=zn(znRiiv,riivBp);
+  const riavZ=(ampI!=null)?zn(znRiav,riavBp):0;
+  const rsaZ =(hrI!=null )?zn(znRsa ,rsaBp ):0;
+  riivZHist.push(riivZ); cap(riivZHist,RESP_FFT_N);
+  riavZHist.push(riavZ); cap(riavZHist,RESP_FFT_N);
+  rsaZHist.push(rsaZ);   cap(rsaZHist,RESP_FFT_N);
+  rsaBpHist.push(rsaBp); cap(rsaBpHist,40);
+
+  // ---- polarity calibration against RSA (the reliability fix) ----
+  if(riivZHist.length>=POLAR_WIN+POLAR_LAG){
+    const rR=bestLagCorr(riivZHist,rsaZHist,POLAR_WIN,POLAR_LAG);
+    rhoRbar+=A_RHO*(rR-rhoRbar);
+    if(tSec-lastFlipR>FLIP_LOCK){
+      if(rhoRbar>POLAR_DB && polarityR!==1){polarityR=1;lastFlipR=tSec;persistPolarity();}
+      else if(rhoRbar<-POLAR_DB && polarityR!==-1){polarityR=-1;lastFlipR=tSec;persistPolarity();}
+    }
+    const rA=bestLagCorr(riavZHist,rsaZHist,POLAR_WIN,POLAR_LAG);
+    rhoAbar+=A_RHO*(rA-rhoAbar);
+    if(tSec-lastFlipA>FLIP_LOCK){
+      if(rhoAbar>POLAR_DB && signA!==1){signA=1;lastFlipA=tSec;}
+      else if(rhoAbar<-POLAR_DB && signA!==-1){signA=-1;lastFlipA=tSec;}
+      else if(Math.abs(rhoAbar)<POLAR_DB) signA=0;
+    }
+  }
+  const oRIIV=polarityR*riivZ, oRIAV=signA*riavZ;
+
+  // ---- fuse (weights from spectral SNR, updated at 4 Hz tick) ----
+  const denom=wR+wA+wS+EPS;
+  const R=(wR*oRIIV + wA*oRIAV + wS*rsaZ)/denom;
+  rHist.push(R); cap(rHist,RESP_FFT_N);
+  respTrace.push(R); cap(respTrace,RESP_FFT_N);
+
+  // ---- breath-hold tracking ----
+  shortR2+=0.041*(R*R-shortR2);   // ~6 s
+  longR2 +=0.0042*(R*R-longR2);   // ~60 s
+  breathHold=(SQI>=40 && longR2>0.05 && shortR2<0.15*longR2);
+
+  // ---- extrema state machine (label) ----
+  if(!recInit){recMax=recMin=R;recInit=true;}
+  recMax+= (R>recMax)?(R-recMax):(R-recMax)*0.01;
+  recMin+= (R<recMin)?(R-recMin):(R-recMin)*0.01;
+  ampEnv+=0.05*((recMax-recMin)-ampEnv);
+  const HYST=Math.max(0.15*ampEnv,0.10);
+  if(bsState==='RISING'){
+    if(R>runPeak)runPeak=R;
+    if(R<runPeak-HYST && (tSec-tExt)>1.2){bsState='FALLING';tExt=tSec;runTrough=R;}
+  }else{
+    if(R<runTrough)runTrough=R;
+    if(R>runTrough+HYST && (tSec-tExt)>1.2){bsState='RISING';tExt=tSec;runPeak=R;}
+  }
+
+  // ---- continuous phase (quadrature; 0=trough, 0.5=peak) ----
+  rmsRsq+=0.05*(R*R-rmsRsq); const Rn=R/Math.sqrt(rmsRsq+EPS);
+  const dR=R-Rprev; Rprev=R; dRema+=0.4*(dR-dRema);
+  drsq+=0.05*(dRema*dRema-drsq); const dRn=dRema/Math.sqrt(drsq+EPS);
+  phi=((Math.atan2(dRn,-Rn)/(2*Math.PI))%1+1)%1;
+
+  // consistency of label vs slope (for phase trust)
+  const slopeInhale=dRema>0, smInhale=(bsState==='RISING');
+  labelAgree.push(slopeInhale===smInhale?1:0); cap(labelAgree,16);
+}
+
+function persistPolarity(){try{localStorage.setItem('br_polarityR',String(polarityR));}catch(e){}}
+
+function bestLagCorr(a,b,win,maxLag){
+  const n=a.length; let best=0, bestAbs=-1;
+  for(let L=-maxLag;L<=maxLag;L++){
+    let sx=0,sy=0,sxx=0,syy=0,sxy=0,m=0;
+    for(let i=0;i<win;i++){
+      const ia=n-win+i, ib=ia+L;
+      if(ib<0||ib>=n) continue;
+      const x=a[ia], y=b[ib];
+      sx+=x;sy+=y;sxx+=x*x;syy+=y*y;sxy+=x*y;m++;
+    }
+    if(m<win*0.7) continue;
+    const cov=sxy-sx*sy/m, vx=sxx-sx*sx/m, vy=syy-sy*sy/m;
+    const r=(vx>0&&vy>0)?cov/Math.sqrt(vx*vy):0;
+    if(Math.abs(r)>bestAbs){bestAbs=Math.abs(r);best=r;}
+  }
+  return best;
+}
+
+/* ============================== FFTs ============================== */
+function fft(re,im){
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){[re[i],re[j]]=[re[j],re[i]];[im[i],im[j]]=[im[j],im[i]];}}
+  for(let len=2;len<=n;len<<=1){const ang=-2*Math.PI/len,wr=Math.cos(ang),wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;
+      for(let k=0;k<len/2;k++){const a=i+k,b=i+k+len/2;const vr=re[b]*cr-im[b]*ci,vi=re[b]*ci+im[b]*cr;
+        re[b]=re[a]-vr;im[b]=im[a]-vi;re[a]+=vr;im[a]+=vi;const ncr=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=ncr;}}}
+}
+function parabolic(m,i){const y0=m[i-1]||0,y1=m[i],y2=m[i+1]||0,d=(y0-2*y1+y2);const o=d?0.5*(y0-y2)/d:0;return i+clamp(o,-0.5,0.5);}
+
+function computeCardiacSNR(){
+  if(sampleCount<FFT_N) return;
+  const re=new Array(FFT_N), im=new Array(FFT_N).fill(0);
+  let mn=0; for(let k=0;k<FFT_N;k++) mn+=sigRing[(ringPos+k)%FFT_N]; mn/=FFT_N;
+  for(let k=0;k<FFT_N;k++){const w=0.5-0.5*Math.cos(2*Math.PI*k/(FFT_N-1));re[k]=(sigRing[(ringPos+k)%FFT_N]-mn)*w;}
+  fft(re,im);
+  const binHz=FS/FFT_N, kMax=Math.min(39,FFT_N/2-1), mag=new Array(kMax+1);
+  for(let k=0;k<=kMax;k++) mag[k]=Math.hypot(re[k],im[k]);
+  cardiacMag=mag; cardiacBinHz=binHz;
+  let cLo=Math.round(0.70/binHz), cPk=cLo;
+  for(let k=cLo;k<=kMax;k++) if(mag[k]>mag[cPk]) cPk=k;
+  const nf=[]; for(let k=Math.round(0.5/binHz);k<=kMax;k++){if(Math.abs(k-cPk)>2)nf.push(mag[k]*mag[k]);}
+  nf.sort((a,b)=>a-b); const noise=nf.length?nf[Math.floor(nf.length/2)]:1;
+  curSnr=10*Math.log10(Math.max(mag[cPk]*mag[cPk],1e-9)/Math.max(noise,1e-9));
+}
+
+// FFT of a 4 Hz carrier; returns spectral metrics over the resp band.
+// Operates on whatever data is available (>=8 s), zero-padded to N, so resp
+// rate + confidence appear early and SHARPEN as the window fills (Q ~ data length).
+function respFFT(buf){
+  const N=RESP_FFT_N, avail=buf.length;
+  if(avail<32) return null;                 // need ~8 s before any estimate
+  const L=Math.min(avail,N);
+  const re=new Array(N).fill(0), im=new Array(N).fill(0);
+  let mn=0; for(let k=0;k<L;k++) mn+=buf[avail-L+k]; mn/=L;
+  for(let k=0;k<L;k++){const w=0.5-0.5*Math.cos(2*Math.PI*k/(L-1));re[k]=(buf[avail-L+k]-mn)*w;}
+  fft(re,im);
+  const binHz=RESP_FS/N, kMax=Math.min(139,N/2-1), mag=new Array(kMax+1);
+  for(let k=0;k<=kMax;k++) mag[k]=Math.hypot(re[k],im[k]);
+  const kLo=Math.max(1,Math.round(F_LO/binHz)), kHi=Math.round(F_HI/binHz);
+  let kpk=kLo; for(let k=kLo;k<=kHi;k++) if(mag[k]>mag[kpk]) kpk=k;
+  const fpk=parabolic(mag,kpk)*binHz, Ppk=mag[kpk]*mag[kpk];
+  // robust noise floor = median power 0.10-0.80 Hz, excl ±2 bins around peak
+  const nf=[], nLo=Math.round(0.10/binHz), nHi=Math.round(0.80/binHz);
+  for(let k=nLo;k<=nHi;k++){if(Math.abs(k-kpk)>2)nf.push(mag[k]*mag[k]);}
+  const Nfloor=Math.max(median(nf),1e-9);
+  const snr=10*Math.log10(Math.max(Ppk,1e-9)/Nfloor);
+  const prom=clamp((Ppk-Nfloor)/Math.max(Ppk,1e-9),0,1);
+  // FWHM around peak (half-power)
+  const half=Ppk/2; let lo=kpk,hi=kpk;
+  while(lo>kLo && mag[lo]*mag[lo]>half) lo--;
+  while(hi<kHi && mag[hi]*mag[hi]>half) hi++;
+  const fwhm=Math.max((hi-lo)*binHz,binHz), Q=fpk/fwhm;
+  return {mag,binHz,fpk,Ppk,Nfloor,snr,prom,fwhm,Q,kMax};
+}
+
+/* ============================== 4 Hz UPDATE ============================== */
+function tick4Hz(){
+  secondsOfData = (!isLive())?0:(performance.now()-streamStart)/1000;
+  computeCardiacSNR();
+
+  const fR=respFFT(rHist), cRiiv=respFFT(riivZHist), cRiav=respFFT(riavZHist), cRsa=respFFT(rsaZHist);
+  if(fR){ fused=fR; if(fR.mag){respMag=fR.mag;respBinHz=fR.binHz;} }
+  snrRiiv=cRiiv?cRiiv.snr:-99; fRiiv=cRiiv?cRiiv.fpk:0;
+  snrRiav=cRiav?cRiav.snr:-99; fRiav=cRiav?cRiav.fpk:0;
+  snrRsa =cRsa ?cRsa.snr :-99; fRsa =cRsa ?cRsa.fpk :0;
+
+  // fusion weights (used by the next 4 Hz ticks)
+  const meanIbi=ibiHist.length?mean(ibiHist):0;
+  const RR_Hz=fused.fpk>0?fused.fpk:0;
+  const beatsPerBreath=(RR_Hz>0&&meanIbi>0)?(1/RR_Hz)/(meanIbi/1000):0;
+  const rsaRel=clamp(beatsPerBreath/3,0.2,1);
+  wR=Math.max(clamp((snrRiiv-4)/12,0,1),0.4);
+  wA=clamp((snrRiav-4)/12,0,1)*Math.abs(rhoAbar)*(signA!==0?1:0);
+  wS=Math.min(clamp((snrRsa-4)/12,0,1)*rsaRel,0.4);
+
+  computeBreathingConfidence(RR_Hz,beatsPerBreath);
+  computeSQI();
+  computeMetaConfidence();
+  computeValidation(beatsPerBreath);
+  renderPanels(RR_Hz);
+}
+
+function computeBreathingConfidence(RR_Hz,beatsPerBreath){
+  const E_snr=clamp((fused.snr-4)/12,0,1);
+  const E_prom=clamp(fused.prom,0,1)*clamp((fused.Q-1.5)/4.5,0,1);
+  // cross-signal rate agreement (dominant)
+  const fr=[]; if(snrRiiv>=4)fr.push(fRiiv); if(snrRiav>=4)fr.push(fRiav); if(snrRsa>=4)fr.push(fRsa);
+  let E_agree; if(fr.length>=2)E_agree=clamp(1-std(fr)/0.05,0,1); else if(fr.length===1)E_agree=0.40; else E_agree=0;
+  // temporal stability
+  if(RR_Hz>0){ rrHist8.push(RR_Hz); cap(rrHist8,32); }
+  let E_stab=0;
+  if(rrHist8.length>=8 && RR_Hz>=F_LO && RR_Hz<=F_HI){ const cv=mean(rrHist8)>0?std(rrHist8)/mean(rrHist8):1; E_stab=clamp(1-cv/0.15,0,1); }
+  const RATE=clamp(0.30*E_snr+0.20*E_prom+0.35*E_agree+0.15*E_stab,0,1);
+
+  const P_polar=clamp((Math.abs(rhoRbar)-0.20)/0.60,0,1);
+  const SDNN=std(ibiHist);
+  const P_rsa=clamp((beatsPerBreath-2)/3,0,1)*clamp((SDNN-8)/32,0,1);
+  const P_consist=labelAgree.length?mean(labelAgree):0;
+  const PHASE=clamp(0.45*P_polar+0.30*P_rsa+0.25*P_consist,0,1);
+
+  let Braw=RATE*(0.4+0.6*PHASE);
+  if(fused.Ppk<=6*fused.Nfloor) Braw=0;
+  if(SQI<25) Braw=Math.min(Braw,0.15);
+  const RR_br=RR_Hz*60; if(RR_br<6||RR_br>30) Braw*=0.3;
+  Braw*=clamp(secondsOfData/60,0.1,1);
+  if(!isLive()) Braw=0;
+  B+=0.10*(100*Braw-B);
+  ratePct=Math.round(100*RATE); phasePct=Math.round(100*PHASE);
+}
+
+function computeSQI(){
+  // perfusion
+  let ampMed; if(ampHist.length>=3) ampMed=median(ampHist);
+  else { const w=acDisp.slice(-150); ampMed=w.length?(Math.max(...w)-Math.min(...w)):0; }
+  const P=clamp((ampMed-8)/112,0,1);
+  // beat plausibility + jitter
+  let J;
+  if(ibiHist.length>=3){
+    const plaus=ibiHist.filter(v=>v>=300&&v<=2000).length/ibiHist.length;
+    const cv=mean(ibiHist)>0?std(ibiHist)/mean(ibiHist):1;
+    J=plaus*clamp(1-(cv-0.05)/0.30,0,1);
+  } else J=0.3;
+  if(performance.now()-lastBeatTime>2500) J*=0.2;
+  // clipping
+  let clip=0,mnS=1e9,mxS=-1e9; for(const v of sig3s){if(v<=6||v>=1017)clip++; if(v<mnS)mnS=v; if(v>mxS)mxS=v;}
+  const clipFrac=clip/sig3s.length;
+  let C=clamp(1-clipFrac/0.02,0,1); if(mxS-mnS<5) C=0;
+  // cardiac SNR
+  const S=clamp(((curSnr==null?0:curSnr)-3)/17,0,1);
+
+  let sqi=0.30*P+0.25*J+0.20*C+0.25*S;
+  sqi*=Math.min(C,0.4+0.6*P);
+  if(C===0) sqi=0;
+  if(P<0.05&&J<0.05) sqi=Math.min(sqi,0.04);
+  if(!isLive()) sqi=0;
+  sqiRaw=100*clamp(sqi,0,1);
+  SQI+=0.15*(sqiRaw-SQI);
+  sqiRawRing.push(sqiRaw); cap(sqiRawRing,20);
+  sqiDispRing.push(SQI); cap(sqiDispRing,120);
+  sqiLabel = SQI<15?'No contact':SQI<35?'Poor':SQI<55?'Fair':SQI<80?'Good':'Excellent';
+  // sub-scores cached for the mini bars
+  computeSQI._sub=[P,J,C,S];
+}
+
+function computeMetaConfidence(){
+  const beats12=beatTimes.filter(t=>performance.now()-t<12000).length;
+  const Cdata=0.5*clamp(sampleCount/FFT_N,0,1)+0.5*clamp(beats12/8,0,1);
+  const sigma=std(sqiRawRing);
+  let Cstab=clamp(1-sigma/18,0,1); if(sampleCount<FFT_N) Cstab=Math.min(Cstab,0.6);
+  let Cstream; const dt=performance.now()-lastLineTime;
+  if(!isLive()) Cstream=0; else Cstream=dt<500?1:clamp(1-(dt-500)/2500,0,1);
+  const Mraw=100*Math.sqrt(clamp(Cdata,0,1))*(0.4+0.6*Cstab)*Cstream;
+  M+=0.10*(Mraw-M);
+  sqiBand=Math.max(Math.round(sigma),Math.round((1-M/100)*25));
+  mLabel = M<40?'settling':M<70?'tentative':'confident';
+}
+
+function computeValidation(beatsPerBreath){
+  const S=validSens;                       // <1 relaxes every target below
+  const blocked=SQI<25 || !isLive();
+  // targets (scaled by sensitivity)
+  const tAM=0.6*S, tSwing=3*S, tBpb=3*S, tRsaSnr=6*S, tSnr=9*S, tProm=0.6*S, tQ=3*S;
+
+  // V1 AM Matrix (RIAV): pulse-amplitude modulation depth + RIAV SNR
+  let amVar=0; if(ampHist.length>=3){const m=mean(ampHist);amVar=m>0?(Math.max(...ampHist)-Math.min(...ampHist))/m*100:0;}
+  const v1score=clamp(0.5*((amVar-3)/17)+0.5*clamp((snrRiav-4)/12,0,1),0,1);
+  prog[0]=clamp(v1score/tAM,0,1.4);
+  vReason[0]=ampHist.length<3?'acquiring beats…':`mod ${amVar.toFixed(0)}% · SNR ${fmtdb(snrRiav)} · need score ≥${Math.round(tAM*100)}%`;
+
+  // V2 Timing Matrix (RSA): HR rises on inhale — the inhale/exhale anchor
+  const rsaSwing=rsaBpHist.length?(Math.max(...rsaBpHist)-Math.min(...rsaBpHist)):0;
+  prog[1]=clamp(Math.min(rsaSwing/tSwing, beatsPerBreath/tBpb, (snrRsa+4)/(tRsaSnr+4)),0,1.4);
+  vReason[1]=`swing ${rsaSwing.toFixed(1)}/≥${tSwing.toFixed(1)} bpm · ${beatsPerBreath.toFixed(1)}/≥${tBpb.toFixed(1)} b·br · SNR ${fmtdb(snrRsa)}`;
+
+  // V3 Spectral Ratio: resp peak vs noise floor
+  prog[2]=clamp((fused.snr)/tSnr,0,1.4);
+  vReason[2]=`resp SNR ${fmtdb(fused.snr)} / ≥${tSnr.toFixed(0)} dB`;
+
+  // V4 Peak Prominence: spectral sharpness
+  prog[3]=clamp(Math.min(fused.prom/tProm, fused.Q/tQ),0,1.4);
+  vReason[3]=`prom ${fused.prom.toFixed(2)}/≥${tProm.toFixed(2)} · Q ${fused.Q.toFixed(1)}/≥${tQ.toFixed(1)}`;
+
+  for(let i=0;i<4;i++){
+    V[i]=clamp(prog[i],0,1);                                  // feeds SystemConf
+    vState[i]=blocked?'fail':prog[i]>=1?'pass':prog[i]>=0.6?'warn':'fail';
+  }
+  if(blocked) for(let i=0;i<4;i++) vReason[i]=isLive()?'blocked — improve signal quality':'awaiting live signal';
+
+  let sc=100*(0.20*V[0]+0.30*V[1]+0.25*V[2]+0.25*V[3]);
+  if(blocked) sc=Math.min(sc, !isLive()?0:20);
+  SystemConf+=0.10*(sc-SystemConf);
+  const passes=vState.filter(s=>s==='pass').length;
+  verdict=(passes>=3&&vState[1]!=='fail')?'VALIDATED':passes>=2?'PARTIAL':'UNVALIDATED';
+  sysBarVal=0.5*B+0.5*SystemConf;
+}
+function fmtdb(x){return (x==null||x<=-99||!isFinite(x))?'— dB':x.toFixed(1)+' dB';}
+
+/* ============================== RENDER ============================== */
+function barColor(v){return v<35?COL.red:v<65?COL.amber:COL.green;}
+function setBar(id,v,col){const e=$(id);e.style.width=clamp(v,0,100)+'%';if(col)e.style.background=col;}
+
+function renderPanels(RR_Hz){
+  // signal quality (always on)
+  $('sqiVal').innerHTML=Math.round(SQI)+'<span class="bigunit">%</span>';
+  $('sqiVal').style.color=barColor(SQI);
+  $('sqiLabel').textContent=sqiLabel;
+  $('sqiConf').textContent=Math.round(M)+'%';
+  $('sqiBand').textContent='±'+sqiBand;
+  $('sqiConfLabel').textContent=mLabel;
+  setBar('sqiBar',SQI,barColor(SQI));
+  const sub=computeSQI._sub||[0,0,0,0];
+  setBar('barPerf',sub[0]*100); setBar('barJit',sub[1]*100); setBar('barClip',sub[2]*100); setBar('barCard',sub[3]*100);
+
+  // breathing confidence
+  $('breathConf').textContent=Math.round(B)+'%';
+  $('breathConf').style.color=barColor(B);
+  $('ratePhase').textContent=`rate ${ratePct}% · phase ${phasePct}%`;
+  setBar('breathBar',B,barColor(B));
+  if(RR_Hz>0&&isLive()){const br=Math.round(RR_Hz*60);$('vRr').innerHTML=br+'<span class="unit"> br/min</span>';$('breathRate').textContent='≈ '+br+' br/min';}
+  else{$('vRr').innerHTML='—<span class="unit"> br/min</span>';$('breathRate').textContent=isLive()?'…':'—';}
+
+  // polarity badge
+  const pb=$('polarityBadge');
+  if(!isLive()){pb.textContent='polarity: idle';pb.style.color=COL.label;pb.style.borderColor=COL.border;}
+  else if(Math.abs(rhoRbar)>=0.20&&vState[1]!=='fail'){pb.textContent='polarity ✓ verified (RSA)';pb.style.color=COL.green;pb.style.borderColor=COL.green;}
+  else{pb.textContent='polarity: unverified';pb.style.color=COL.amber;pb.style.borderColor=COL.amber;}
+
+  // validation rows + per-row progress-to-PASS bars
+  for(let i=0;i<4;i++){
+    const p=$('v'+(i+1)+'pill'); p.className='pill '+vState[i];
+    p.textContent=vState[i].toUpperCase();
+    $('v'+(i+1)+'score').textContent=Math.round(clamp(prog[i],0,1)*100)+'%';
+    $('v'+(i+1)+'reason').textContent=vReason[i];
+    const bf=$('v'+(i+1)+'bar'); const col=vState[i]==='pass'?COL.green:vState[i]==='warn'?COL.amber:COL.red;
+    bf.style.width=clamp(prog[i],0,1)*100+'%'; bf.style.background=col;
+  }
+  $('sysPct').textContent=Math.round(sysBarVal)+'%';
+  const vv=$('sysVerdict'); vv.textContent=verdict;
+  vv.style.color=verdict==='VALIDATED'?COL.green:verdict==='PARTIAL'?COL.amber:COL.label;
+  setBar('sysBar',sysBarVal,barColor(sysBarVal));
+
+  // metric cards
+  $('vSig').textContent=!isLive()?'—':latestSig;
+  $('vBpm').textContent=latestBpm>0?latestBpm:'—';
+  $('vIbi').innerHTML=(latestBpm>0&&latestIbi>0?latestIbi:'—')+'<span class="unit"> ms</span>';
+  let rsa=null; if(ibiHist.length>=3){rsa=Math.round(Math.max(...ibiHist)-Math.min(...ibiHist));$('vRsa').innerHTML='Δ '+rsa+'<span class="unit"> ms</span>';}
+  else $('vRsa').innerHTML='—<span class="unit"> ms</span>';
+  let pav=null; if(ampHist.length>=3){const m=mean(ampHist);pav=m>0?(Math.max(...ampHist)-Math.min(...ampHist))/m*100:0;$('vAmp').innerHTML=pav.toFixed(1)+'<span class="unit"> %</span>';}
+  else $('vAmp').innerHTML='—<span class="unit"> %</span>';
+
+  // LIVE PULSE hero readout
+  const lockedH=latestBpm>0&&(performance.now()-lastBeatTime)<2500;
+  $('bpmHero').textContent=latestBpm>0?latestBpm:'—';
+  $('bpmHero').style.color=lockedH?COL.green:COL.label;
+  $('ibiHero').textContent=(latestBpm>0&&latestIbi>0)?latestIbi:'—';
+  const lk=$('lockHero');
+  if(!isLive()){lk.textContent='IDLE';lk.style.color=COL.label;lk.style.borderColor=COL.border;}
+  else if(SQI<25){lk.textContent='NO CONTACT';lk.style.color=COL.red;lk.style.borderColor=COL.red;}
+  else if(lockedH){lk.textContent='QUALIFIED BEAT';lk.style.color=COL.green;lk.style.borderColor=COL.green;}
+  else{lk.textContent='SEARCHING…';lk.style.color=COL.amber;lk.style.borderColor=COL.amber;}
+  if(latestAmp!=null&&latestAmp>0) ampRefHero=Math.max(ampRefHero*0.999, latestAmp*1.15, 30);
+  const al=(!isLive()||latestAmp==null)?0:clamp(latestAmp/ampRefHero,0,1);
+  $('ampHero').style.width=(al*100)+'%';
+  $('ampHero').style.background=al>0.5?COL.green:al>0.2?COL.amber:COL.red;
+
+  // histories + sparklines
+  if(latestBpm>0){histBPM.push(latestBpm);cap(histBPM,HIST_CAP);}
+  if(latestBpm>0&&latestIbi>0){histIBI.push(latestIbi);cap(histIBI,HIST_CAP);}
+  if(RR_Hz>0){histRR.push(RR_Hz*60);cap(histRR,HIST_CAP);}
+  if(rsa!=null){histRSA.push(rsa);cap(histRSA,HIST_CAP);}
+  if(pav!=null){histAMP.push(pav);cap(histAMP,HIST_CAP);}
+  drawSpark($('bpmSpark'),histBPM,COL.green);
+  drawSpark($('ibiSpark'),histIBI,COL.blue);
+  drawSpark($('sigSpark'),downsample(rawDisp,72),COL.amber);
+  drawSpark($('rrSpark'),histRR,COL.red);
+  drawSpark($('rsaSpark'),histRSA,COL.blue);
+  drawSpark($('ampSpark'),histAMP,COL.purple);
+  drawSpark($('respSpark'),downsample(respTrace,120),COL.red);
+  drawSpark($('sqiSpark'),sqiDispRing,barColor(SQI));
+
+  // diagnostics
+  const locked=latestBpm>0&&(performance.now()-lastBeatTime)<2500;
+  $('dBeat').textContent=latestBeat;
+  $('dBeatSrc').textContent = (beatSource==='auto'?'Auto · software':'Sensor · library')
+    + (!isLive()?'':`  (sw ${swBpmLast||'—'} / sensor ${senBpmLast||'—'} bpm)`);
+  if(!isLive()){
+    ['dContact','dLock','dSnr','dResp'].forEach(id=>{$(id).style.color=COL.label;});
+    $('dContact').textContent='—';$('dLock').textContent='Acquiring…';$('dSnr').textContent='— dB';$('dResp').textContent='—';
+  }else{
+    $('dLock').textContent=locked?('Locked · '+latestBpm+' bpm'):'Acquiring…'; $('dLock').style.color=locked?COL.green:COL.amber;
+    $('dSnr').textContent=fmtdb(curSnr); $('dSnr').style.color=COL.ink;
+    let q,c; if(SQI<25){q='No / weak contact';c=COL.red;}else if(SQI<55){q='Fair';c=COL.amber;}else{q='Good';c=COL.green;}
+    $('dContact').textContent=q+' ('+Math.round(SQI)+'%)'; $('dContact').style.color=c;
+    if(RR_Hz>0){$('dResp').textContent='Detected · '+Math.round(RR_Hz*60)+' br/min · '+breathWord;$('dResp').style.color=COL.red;}
+    else{$('dResp').textContent='Listening…';$('dResp').style.color=COL.label;}
+  }
+  $('rawLine').textContent=rawLine||'waiting for stream…';
+
+  // header live/stall indicator + uptime
+  if(mode==='serial'){
+    const fresh=isLive();
+    $('statusText').textContent=fresh?'● LIVE':'⚠ NO SIGNAL';
+    $('statusDot').style.background=fresh?COL.green:COL.amber;
+    const s=Math.floor((performance.now()-streamStart)/1000);$('uptime').textContent='UP '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  } else $('uptime').textContent='—';
+}
+const histBPM=[],histIBI=[],histRR=[],histRSA=[],histAMP=[];
+
+/* ---- canvas helpers ---- */
+const cvA=$('traceA'), cvB=$('traceB'), cvHero=$('fftHero'), cvPulse=$('pulseHero'), cvH=$('hud');
+let pulseAmpS=40, ampRefHero=60;
+let drawCount=0;
+function fitCanvas(cv){
+  const dpr=Math.min(devicePixelRatio||1,2), w=cv.clientWidth||300, h=cv.clientHeight||120;
+  const W=Math.round(w*dpr), H=Math.round(h*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function grid(ctx,w,h,rows){ ctx.strokeStyle=hexA(COL.grid,0.7); ctx.lineWidth=1;
+  for(let g=1;g<rows;g++){const y=Math.round(h*g/rows)+0.5; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();} }
+function glowLine(ctx,plot,color,wd){
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.strokeStyle=hexA(color,0.20); ctx.lineWidth=wd+2.6; ctx.beginPath(); plot(ctx); ctx.stroke();
+  ctx.strokeStyle=color; ctx.lineWidth=wd; ctx.beginPath(); plot(ctx); ctx.stroke();
+}
+function dispWindow(){ const len=dispRaw.length, N=Math.min(len,Math.max(60,Math.round(5*fsMeasured))); return {len,N,start:len-N}; }
+// idle/no-signal placeholder so a canvas never shows stale or fake data when not live
+function drawIdle(ctx,w,h,msg){
+  grid(ctx,w,h,3);
+  ctx.textAlign='center';
+  const stalled=mode==='serial';
+  ctx.fillStyle=hexA(stalled?COL.amber:COL.label,0.9); ctx.font='bold 13px monospace';
+  ctx.fillText(stalled?'⚠  NO SIGNAL':'◌  NOT CONNECTED', w/2, h/2-4);
+  // when connected but not live, distinguish a silent port from data-in-the-wrong-format
+  let hint=msg;
+  if(stalled){
+    hint = (performance.now()-lastByteTime < 1500 && !gotValidLine)
+      ? 'data arriving, but not BreathRate format — is the sketch uploaded?'
+      : 'no data — wrong port? press the board’s RESET, replug, or close any Serial Monitor';
+  }
+  ctx.fillStyle=hexA(COL.label,0.55); ctx.font='10px monospace'; ctx.fillText(hint, w/2, h/2+13);
+  ctx.textAlign='left';
+}
+function liveTag(ctx,w){ ctx.save(); ctx.textAlign='right'; ctx.font='bold 9px monospace'; ctx.fillStyle=COL.green; ctx.fillText('● LIVE', w-8, 12); ctx.restore(); }
+
+let aMinS=440,aMaxS=560;
+function drawTraceA(){
+  const {ctx,w,h}=fitCanvas(cvA); ctx.clearRect(0,0,w,h); drawCount++;
+  if(!isLive()){ drawIdle(ctx,w,h,'Connect your board to see the raw PPG waveform'); return; }
+  const {len,N,start}=dispWindow(); if(len<2){grid(ctx,w,h,4);return;}
+  let mn=1e9,mx=-1e9; for(let i=start;i<len;i++){const v=dispRaw[i];if(v<mn)mn=v;if(v>mx)mx=v;}
+  mn=Math.min(mn,THRESHOLD); mx=Math.max(mx,THRESHOLD);
+  const pad=(mx-mn)*0.14+6; mn-=pad; mx+=pad;
+  aMinS+=0.12*(mn-aMinS); aMaxS+=0.12*(mx-aMaxS);
+  const rng=Math.max(aMaxS-aMinS,1), X=i=>(i-start)/(N-1)*w, Y=v=>h-((v-aMinS)/rng)*h;
+  grid(ctx,w,h,4);
+  ctx.save(); ctx.setLineDash([5,4]); ctx.strokeStyle=hexA(COL.label,0.55); ctx.lineWidth=1;
+  const ty=Math.round(Y(THRESHOLD))+0.5; ctx.beginPath(); ctx.moveTo(0,ty); ctx.lineTo(w,ty); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle=hexA(COL.red,0.4); ctx.lineWidth=1.2; ctx.beginPath();
+  for(let i=start;i<len;i++){const x=X(i),y=Y(dispBase[i]); i===start?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+  glowLine(ctx,c=>{for(let i=start;i<len;i++){const x=X(i),y=Y(dispRaw[i]); i===start?c.moveTo(x,y):c.lineTo(x,y);}},COL.red,1.8);
+  for(let i=start;i<len;i++){ if(dispBeat[i]){const x=X(i),y=Y(dispRaw[i]);
+    ctx.beginPath(); ctx.arc(x,y,7,0,6.2832); ctx.strokeStyle=hexA(COL.red,0.5); ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,3.6,0,6.2832); ctx.fillStyle=COL.red; ctx.fill(); } }
+  const lx=X(len-1),ly=Y(dispRaw[len-1]); ctx.beginPath(); ctx.arc(lx,ly,3,0,6.2832); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+let bAmpS=40;
+function drawTraceB(){
+  const {ctx,w,h}=fitCanvas(cvB); ctx.clearRect(0,0,w,h); drawCount++;
+  if(!isLive()){ drawIdle(ctx,w,h,'AC-coupled cardiac — awaiting live signal'); return; }
+  const {len,N,start}=dispWindow(); if(len<2){grid(ctx,w,h,4);return;}
+  let amp=1; for(let i=start;i<len;i++){const a=Math.abs(dispRaw[i]-dispBase[i]); if(a>amp)amp=a;}
+  bAmpS+=0.1*(amp-bAmpS); const sc=(h*0.45)/Math.max(bAmpS,1);
+  const X=i=>(i-start)/(N-1)*w, Y=v=>h/2 - v*sc;
+  grid(ctx,w,h,2);
+  ctx.strokeStyle=hexA(COL.grid,0.9); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,h/2+0.5); ctx.lineTo(w,h/2+0.5); ctx.stroke();
+  glowLine(ctx,c=>{for(let i=start;i<len;i++){const x=X(i),y=Y(dispRaw[i]-dispBase[i]); i===start?c.moveTo(x,y):c.lineTo(x,y);}},COL.green,1.7);
+}
+
+/* ---- LIVE PULSE hero: big cardiac scope + real-time beat detection ---- */
+function drawPulseHero(){
+  const {ctx,w,h}=fitCanvas(cvPulse); ctx.clearRect(0,0,w,h); drawCount++;
+  if(!isLive()){ drawIdle(ctx,w,h,'Connect your board · finger on the sensor for live beats'); return; }
+  const flash=clamp(1-(performance.now()-lastBeatTime)/300,0,1);
+  if(flash>0){ ctx.fillStyle=hexA(COL.green,0.07*flash); ctx.fillRect(0,0,w,h); }
+  const {len,N,start}=dispWindow(); if(len<2){grid(ctx,w,h,3);return;}
+  let amp=1; for(let i=start;i<len;i++){const a=Math.abs(dispRaw[i]-dispBase[i]); if(a>amp)amp=a;}
+  pulseAmpS+=0.08*(amp-pulseAmpS); const sc=(h*0.40)/Math.max(pulseAmpS,1);
+  const cy=h*0.56, X=i=>(i-start)/(N-1)*w, Y=v=>cy-v*sc;
+  grid(ctx,w,h,3);
+  // adaptive beat-trigger guide (~half the live envelope — what the detector fires on)
+  const ty=Y(0.5*pulseAmpS);
+  ctx.setLineDash([4,4]); ctx.strokeStyle=hexA(COL.amber,0.5); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,ty); ctx.lineTo(w,ty); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=hexA(COL.amber,0.75); ctx.font='9px monospace'; ctx.textAlign='left'; ctx.fillText('beat trigger',6,ty-4);
+  // beat flash bars
+  for(let i=start;i<len;i++){ if(dispBeat[i]){ const x=X(i); ctx.strokeStyle=hexA(COL.green,0.26); ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); } }
+  // pulse waveform (big glow)
+  glowLine(ctx,c=>{for(let i=start;i<len;i++){const x=X(i),y=Y(dispRaw[i]-dispBase[i]); i===start?c.moveTo(x,y):c.lineTo(x,y);}},COL.green,2.4);
+  // beat dots
+  for(let i=start;i<len;i++){ if(dispBeat[i]){ const x=X(i),y=Y(dispRaw[i]-dispBase[i]);
+    ctx.beginPath(); ctx.arc(x,y,9,0,6.2832); ctx.strokeStyle=hexA(COL.green,0.5); ctx.lineWidth=1.2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,5,0,6.2832); ctx.fillStyle=COL.green; ctx.fill(); } }
+  // leading sweep dot, ring pulses on each beat
+  const lx=X(len-1),ly=Y(dispRaw[len-1]-dispBase[len-1]);
+  ctx.beginPath(); ctx.arc(lx,ly,3+8*flash,0,6.2832); ctx.fillStyle=hexA(COL.green,0.22+0.5*flash); ctx.fill();
+  ctx.beginPath(); ctx.arc(lx,ly,3,0,6.2832); ctx.fillStyle='#fff'; ctx.fill();
+  liveTag(ctx,w);
+}
+
+/* ---- FFT analyzer (snappy: attack/decay + peak-hold, animated at 60 fps) ---- */
+function interpMag(mag,binHz,f){ const x=f/binHz,i=Math.floor(x); if(i<0||i+1>=mag.length)return (i>=0&&i<mag.length)?mag[i]:0; const fr=x-i; return mag[i]*(1-fr)+mag[i+1]*fr; }
+const FMAX=3.0;
+function computeDisplaySpectrum(){
+  if(!isLive()){ fftTarget.fill(0); return; }
+  computeCardiacSNR();                       // refresh cardiac magnitudes for snappy bars
+  let rMax=1e-9,cMax=1e-9;
+  for(let i=0;i<FFT_BARS;i++){
+    const f=(i+0.5)/FFT_BARS*FMAX; let v;
+    if(f<0.6){ v=interpMag(respMag,respBinHz,f); fftBand[i]=0; if(f>=F_LO)rMax=Math.max(rMax,v); }
+    else{ v=interpMag(cardiacMag,cardiacBinHz,f); fftBand[i]=1; if(f>=0.7)cMax=Math.max(cMax,v); }
+    fftRaw[i]=v;
+  }
+  for(let i=0;i<FFT_BARS;i++){ const norm=fftBand[i]===0?rMax:cMax; fftTarget[i]=clamp(fftRaw[i]/norm,0,1)*(fftBand[i]===0?0.82:0.96); }
+  respPkHz=fused.fpk||0; cardPkHz=latestBpm>0?latestBpm/60:0;
+}
+function pushSpectroRow(){
+  const row=new Float32Array(FFT_BARS); for(let i=0;i<FFT_BARS;i++) row[i]=fftBar[i];
+  spectro.push(row);
+  spectroEv.push({beat:rowHadBeat, breath:(breathWord==='INHALE'?'I':breathWord==='EXHALE'?'E':null)});
+  rowHadBeat=false;
+  if(spectro.length>SPECTRO_ROWS){ spectro.shift(); spectroEv.shift(); }
+}
+
+/* ---- 3D isometric FFT waterfall (the hero) ---- */
+function drawHero(){
+  const {ctx,w,h}=fitCanvas(cvHero); ctx.clearRect(0,0,w,h); drawCount++;
+  if(!isLive()){ drawIdle(ctx,w,h,'Live FFT time-stream — connect your board to begin'); return; }
+  const mL=58,mR=18,mT=16,mB=58, plotW=w-mL-mR, plotH=h-mT-mB, baseX=mL, baseY=h-mB;
+  const dFracX=0.34, dFracY=0.52, DEN=SPECTRO_ROWS;
+  const depthX=plotW*dFracX/DEN, depthY=plotH*dFracY/DEN;
+  const dxF=(plotW*(1-dFracX))/(FFT_BARS-1), H=plotH*0.46;
+  const FMAXi=FFT_BARS-1;
+  const bX=(i,d)=>baseX+i*dxF+d*depthX, bY=(d,v)=>baseY-d*depthY-v*H;
+  const fToI=f=>f/FMAX*FMAXi, fx0=f=>bX(fToI(f),0);
+  const rB=Math.round(fToI(0.55)), cA=Math.round(fToI(0.7));
+  const ROWS=spectro.length;
+
+  // top-left axis legend
+  ctx.textAlign='left'; ctx.font='9px monospace'; ctx.fillStyle=hexA(COL.label,0.55);
+  ctx.fillText('freq →   time ↗   power ↑', mL, mT+2);
+
+  function ridge(row,d,fade,lw){
+    ctx.lineWidth=lw; ctx.lineJoin='round';
+    ctx.strokeStyle=hexA(COL.red,fade);  ctx.beginPath(); for(let i=0;i<=rB;i++){const x=bX(i,d),y=bY(d,row[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.stroke();
+    ctx.strokeStyle=hexA(COL.label,fade*0.5); ctx.beginPath(); for(let i=rB;i<=cA;i++){const x=bX(i,d),y=bY(d,row[i]); i===rB?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+    ctx.strokeStyle=hexA(COL.green,fade); ctx.beginPath(); for(let i=cA;i<FFT_BARS;i++){const x=bX(i,d),y=bY(d,row[i]); i===cA?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+  }
+  // receding floor grid (3D depth cue): frequency rails + time contours
+  const Dmax=Math.max(ROWS,1);
+  ctx.lineWidth=1; ctx.strokeStyle=hexA(COL.grid,0.5);
+  for(let f=0;f<=3;f+=0.5){ const i=fToI(f); ctx.beginPath(); ctx.moveTo(bX(i,0),bY(0,0)); ctx.lineTo(bX(i,Dmax),bY(Dmax,0)); ctx.stroke(); }
+  ctx.strokeStyle=hexA(COL.grid,0.32);
+  for(let d=0;d<=Dmax;d+=8){ ctx.beginPath(); ctx.moveTo(bX(0,d),bY(d,0)); ctx.lineTo(bX(FMAXi,d),bY(d,0)); ctx.stroke(); }
+  // history rows: oldest (back) -> newest (front), depth d = ROWS..1
+  for(let r=0;r<ROWS;r++){
+    const d=ROWS-r, fade=0.22+0.6*(r/Math.max(ROWS-1,1));
+    ridge(spectro[r],d,fade,1.1);
+    const ev=spectroEv[r]; if(ev){ const ex=bX(0,d)-7, ey=bY(d,0);
+      if(ev.beat){ ctx.fillStyle=hexA(COL.green,Math.max(fade,0.55)); ctx.font='10px monospace'; ctx.textAlign='right'; ctx.fillText('♥',ex,ey+3); }
+      else if(ev.breath){ ctx.fillStyle=ev.breath==='I'?hexA(COL.green,fade):hexA(COL.blue,fade); ctx.textAlign='right'; ctx.font='9px monospace'; ctx.fillText(ev.breath==='I'?'▲':'▼',ex,ey+2); }
+    }
+  }
+  // live front row (d=0) from the animated bars — filled + bright
+  ctx.beginPath(); for(let i=0;i<FFT_BARS;i++){const x=bX(i,0),y=bY(0,fftBar[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.lineTo(bX(FMAXi,0),baseY); ctx.lineTo(bX(0,0),baseY); ctx.closePath();
+  const g=ctx.createLinearGradient(0,baseY-H,0,baseY); g.addColorStop(0,hexA(COL.purple,0.16)); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fill();
+  ridge(fftBar,0,1.0,2.0);
+
+  // front frequency axis + Hz ticks
+  ctx.textAlign='center'; ctx.font='9px monospace';
+  for(let f=0;f<=3;f+=0.5){ const x=fx0(f); ctx.strokeStyle=hexA(COL.grid,0.9); ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x,baseY+4); ctx.stroke();
+    ctx.fillStyle=hexA(COL.label,0.85); ctx.fillText(f.toFixed(1),x,baseY+15); }
+  ctx.fillStyle=hexA(COL.label,0.5); ctx.fillText('Hz',fx0(3)+16,baseY+15);
+  ctx.font='bold 9px monospace';
+  ctx.fillStyle=hexA(COL.red,0.9);   ctx.fillText('RESP · 6–30 br/min',(fx0(F_LO)+fx0(F_HI))/2,baseY+31);
+  ctx.fillStyle=hexA(COL.green,0.9); ctx.fillText('CARDIAC · 42–180 bpm',(fx0(0.85)+fx0(2.6))/2,baseY+31);
+
+  // time (depth) axis ticks along the receding left edge
+  ctx.textAlign='right'; ctx.font='8px monospace';
+  for(let s=0;s*1000/ROW_MS<=ROWS;s++){ const d=Math.round(s*1000/ROW_MS); if(d>ROWS&&s>0)break; const x=bX(0,d)-11,y=bY(d,0);
+    ctx.fillStyle=hexA(COL.label,0.7); ctx.fillText(s===0?'now':('-'+s+'s'),x,y+3);
+    ctx.strokeStyle=hexA(COL.grid,0.5); ctx.beginPath(); ctx.moveTo(bX(0,d)-8,y); ctx.lineTo(bX(0,d)-2,y); ctx.stroke(); }
+
+  // live peak callouts on the front ridge
+  const callout=(f,txt,col)=>{ const i=Math.round(fToI(f)); if(i<0||i>=FFT_BARS)return; const x=bX(i,0),y=bY(0,fftBar[i]), ly=Math.max(y-26,mT+14);
+    ctx.strokeStyle=hexA(col,0.7); ctx.setLineDash([2,2]); ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,ly+5); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(x,y,3.6,0,6.2832); ctx.fillStyle=col; ctx.fill();
+    ctx.fillStyle=col; ctx.font='bold 12px monospace'; ctx.textAlign='center'; ctx.fillText(txt,Math.max(46,Math.min(x,w-46)),ly); };
+  if(respPkHz>=F_LO&&respPkHz<=F_HI) callout(respPkHz,Math.round(respPkHz*60)+' br/min',COL.red);
+  if(cardPkHz>=0.7)                  callout(cardPkHz,Math.round(cardPkHz*60)+' bpm',COL.green);
+  liveTag(ctx,w);
+}
+
+/* ---- breathing figure (per frame) ---- */
+let breathLvl=0;
+function updateBreathFigure(){
+  const polUnresolved=Math.abs(rhoRbar)<0.20;
+  // figure motion ALWAYS comes from the real respiration phase (phi); never synthesized
+  let word, color, level=0.5-0.5*Math.cos(2*Math.PI*phi);
+  if(!isLive()){ word='—'; color=COL.label; level=0; }              // no live data -> flat, no motion
+  else if(breathHold){ word='HOLD'; color=COL.amber; level=breathLvl; }
+  else if(polUnresolved && signA===0){ word='DETECTING…'; color=COL.label; }
+  else if(phasePct<35){ word='ACQUIRING…'; color=COL.label; }       // real motion, label hedged
+  else { word=bsState==='RISING'?'INHALE':'EXHALE'; color=word==='INHALE'?COL.green:COL.blue; }
+  breathLvl+=0.18*(level-breathLvl);
+  $('person').style.transform=`scale(${(1+0.16*breathLvl).toFixed(3)})`;
+  const orb=$('breathOrb'),ring=$('breathRing');
+  orb.setAttribute('r',(48+22*breathLvl).toFixed(1)); orb.style.opacity=(0.10+0.22*breathLvl).toFixed(2);
+  ring.setAttribute('r',(68+22*breathLvl).toFixed(1));
+  orb.style.fill=color; ring.style.stroke=color;
+  breathWord=word;
+  const ww=$('breathWord'); ww.textContent=word; ww.style.color=color;
+}
+
+/* ---- performance / resource HUD (toggle: button or key D) ---- */
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawHUD(){
+  if(!hudOn){ if(cvH.width){const c=cvH.getContext('2d');c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,cvH.width,cvH.height);} return; }
+  const {ctx,w,h}=fitCanvas(cvH); ctx.clearRect(0,0,w,h); drawCount++;
+  ctx.fillStyle='rgba(6,10,16,0.88)'; rr(ctx,0.5,0.5,w-1,h-1,9); ctx.fill();
+  ctx.strokeStyle=hexA(COL.green,0.35); ctx.lineWidth=1; rr(ctx,0.5,0.5,w-1,h-1,9); ctx.stroke();
+  ctx.textAlign='left'; ctx.fillStyle=COL.green; ctx.font='bold 10px monospace'; ctx.fillText('▣ BREATHRATE ENGINE',10,15);
+  ctx.textAlign='right'; ctx.fillStyle=hexA(COL.label,0.7); ctx.fillText('stat',w-10,15); ctx.textAlign='left';
+  const fps=fpsEMA, fc=fps>=55?COL.green:fps>=30?COL.amber:COL.red;
+  ctx.fillStyle=fc; ctx.font='bold 28px monospace'; ctx.fillText(fps.toFixed(0),10,46);
+  ctx.font='9px monospace'; ctx.fillStyle=COL.label; ctx.fillText('FPS',56,39);
+  ctx.fillStyle=fc; ctx.font='11px monospace'; ctx.fillText(frameMs.toFixed(1)+' ms',56,47);
+  const gx=104,gy=24,gw=w-gx-10,gh=24, maxMs=33.3, budget=16.67;
+  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(gx,gy,gw,gh);
+  const nb=frameHist.length, bw2=gw/120;
+  for(let i=0;i<nb;i++){const v=frameHist[i],bh=Math.min(v/maxMs,1)*gh,c=v<=budget*1.15?COL.green:v<=budget*1.8?COL.amber:COL.red;ctx.fillStyle=c;ctx.fillRect(gx+i*bw2,gy+gh-bh,Math.max(bw2-0.3,0.7),bh);}
+  const by=gy+gh-(budget/maxMs)*gh; ctx.strokeStyle=hexA(COL.green,0.55); ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(gx,by); ctx.lineTo(gx+gw,by); ctx.stroke(); ctx.setLineDash([]);
+  let yy=64; ctx.font='10px monospace';
+  const row=(k,v,c)=>{ctx.textAlign='left';ctx.fillStyle=hexA(COL.label,0.8);ctx.fillText(k,10,yy);ctx.textAlign='right';ctx.fillStyle=c||COL.ink;ctx.fillText(v,w-10,yy);yy+=15;};
+  row('sensor', (!isLive()?'—':fsMeasured.toFixed(1)+' Hz'+(dspDecim>1?'  ÷'+dspDecim+'→50':'')), !isLive()?COL.label:COL.blue);
+  row('dsp · fft', '4 Hz · '+dispPerSec+' Hz', COL.ink);
+  row('draws', drawsPerSec+' /s', COL.ink);
+  row('rx · beats', totalRx.toLocaleString()+' · '+totalBeats, COL.ink);
+  if(performance.memory){const MB=x=>(x/1048576).toFixed(0); row('JS heap', MB(performance.memory.usedJSHeapSize)+' / '+MB(performance.memory.jsHeapSizeLimit)+' MB', COL.ink);}
+  const frac=Math.min(frameMs/budget/1.5,1), bc=frameMs<=budget*1.15?COL.green:frameMs<=budget*1.8?COL.amber:COL.red;
+  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(10,yy-6,w-20,6); ctx.fillStyle=bc; ctx.fillRect(10,yy-6,(w-20)*frac,6);
+  ctx.textAlign='left';
+}
+
+/* ---- master 60 fps render loop (smart redraw) ---- */
+let rafLast=0, fpsEMA=60, frameMs=16.7, frameHist=[], lastSecT=0, drawPrev=0, drawsPerSec=0, dispCalls=0, dispPerSec=0, fftLastT=0;
+const rxWin=[];
+function engine(now){
+  const dt=now-(rafLast||now); rafLast=now;
+  if(dt>0&&dt<200){ fpsEMA+=0.1*(1000/dt-fpsEMA); frameMs+=0.1*(dt-frameMs); }
+  frameHist.push(Math.min(dt,99)); if(frameHist.length>120)frameHist.shift();
+  // burst-immune sample-rate over a ~1.5 s real-time window
+  rxWin.push(now,totalRx); while(rxWin.length>4 && now-rxWin[0]>1500) rxWin.splice(0,2);
+  if(rxWin.length>=4){ const span=now-rxWin[0]; if(span>400){ fsMeasured=(totalRx-rxWin[1])*1000/span; dspDecim=Math.max(1,Math.min(4,Math.round(fsMeasured/50))); } }
+  if(now-lastSecT>=1000){ const sp=(now-lastSecT)/1000; drawsPerSec=Math.round((drawCount-drawPrev)/sp); drawPrev=drawCount; dispPerSec=Math.round(dispCalls/sp); dispCalls=0; lastSecT=now; }
+  if(now-fftLastT>=55){ fftLastT=now; computeDisplaySpectrum(); dispCalls++; }
+  let settled=true;
+  for(let i=0;i<FFT_BARS;i++){
+    const t=fftTarget[i], b=fftBar[i];
+    fftBar[i]=b+(t>b?(t-b)*0.45:(t-b)*0.14);     // snappy attack, smooth decay
+    if(Math.abs(fftBar[i]-t)>0.003) settled=false;
+    fftPeak[i]=Math.max(fftPeak[i]*0.985,fftBar[i]); // peak-hold cap, slow fall
+    if(fftPeak[i]>0.004) settled=false;
+  }
+  const live=isLive();
+  updateBreathFigure();
+  updatePacer(now);
+  if(live){ if(now-lastRowT>=ROW_MS){ lastRowT=now; pushSpectroRow(); } }      // only stream history while live
+  else if(spectro.length){ spectro.length=0; spectroEv.length=0; fftBar.fill(0); fftPeak.fill(0); } // blank instantly on signal loss
+  drawTraceA(); drawTraceB();
+  drawPulseHero();
+  drawHero();
+  drawHUD();
+  requestAnimationFrame(engine);
+}
+requestAnimationFrame(engine);
+
+/* ---- sparklines ---- */
+function sizeCv(cv){const dpr=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}return{dpr,w,h};}
+function drawSpark(cv,data,color){
+  if(!cv)return; const{dpr,w,h}=sizeCv(cv),ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  if(!data||data.length<2)return;
+  const mn=Math.min(...data),mx=Math.max(...data),rng=Math.max(mx-mn,1e-6);
+  const px=i=>i/(data.length-1)*w, py=v=>h-3-((v-mn)/rng)*(h-6);
+  ctx.beginPath();ctx.moveTo(0,h);data.forEach((v,i)=>ctx.lineTo(px(i),py(v)));ctx.lineTo(w,h);ctx.closePath();
+  ctx.fillStyle=hexA(color,0.14);ctx.fill();
+  ctx.beginPath();data.forEach((v,i)=>i?ctx.lineTo(px(i),py(v)):ctx.moveTo(px(i),py(v)));
+  ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.stroke();
+}
+function downsample(arr,n){const out=[],step=arr.length/n;for(let i=0;i<n;i++)out.push(arr[Math.floor(i*step)]);return out;}
+
+/* ---- 4 Hz DSP analysis scheduler (rendering is the 60 fps engine loop) ---- */
+setInterval(tick4Hz,250);
+
+/* ---- HUD toggle ---- */
+/* ---- breathing pacer (clock-driven 6/min guide) ---- */
+const PACER_PERIOD=10000;   // 6 breaths/min = 10 s (5 s in · 5 s out)
+function updatePacer(now){
+  if(!pacerOn) return;
+  const t=now%PACER_PERIOD, half=PACER_PERIOD/2, inhale=t<half;
+  const fill=inhale ? t/half : 1-(t-half)/half;        // 0→1 in, 1→0 out
+  const f=$('pacerFill'), wd=$('pacerWord');
+  f.style.width=(fill*100).toFixed(1)+'%';
+  f.style.background=inhale?COL.green:COL.blue;
+  wd.textContent=inhale?'BREATHE IN ▲':'BREATHE OUT ▼';
+  wd.style.color=inhale?COL.green:COL.blue;
+}
+$('pacerBtn').onclick=()=>{ pacerOn=!pacerOn; $('pacerBar').style.display=pacerOn?'flex':'none'; $('pacerBtn').style.color=pacerOn?'var(--blue)':''; };
+
+/* ---- validator sensitivity (clinical / relaxed) ---- */
+$('sensBtn').onclick=()=>{ validSens = validSens===1 ? 0.65 : 1; const b=$('sensBtn');
+  b.textContent = validSens===1 ? 'CLINICAL' : 'RELAXED';
+  b.style.color = validSens===1 ? 'var(--label)' : 'var(--amber)';
+  b.style.borderColor = validSens===1 ? 'var(--border)' : 'var(--amber)'; };
+
+$('hudBtn').onclick=()=>{ hudOn=!hudOn; $('hudBtn').style.opacity=hudOn?'1':'0.5'; };
+window.addEventListener('keydown',e=>{ if((e.key==='d'||e.key==='D')&&!e.metaKey&&!e.ctrlKey){hudOn=!hudOn;$('hudBtn').style.opacity=hudOn?'1':'0.5';} });
+
+/* ---- beat-source toggle ---- */
+$('beatBtn').onclick=()=>{
+  beatSource=(beatSource==='auto')?'sensor':'auto';
+  $('beatBtn').innerHTML='&#9829; Beats: '+(beatSource==='auto'?'Auto':'Sensor');
+  $('beatBtn').style.color=(beatSource==='auto')?'':COL.amber;
+  resetBeatState();
+};
+
+/* ============================== CONNECT (live serial only — no simulation) ============================== */
+// "Live" = connected AND a real line arrived within the last 1.5 s. Everything on
+// the page reads/animates only when this is true; otherwise it sits idle/blank.
+function isLive(){ return mode==='serial' && (performance.now()-lastLineTime)<1500; }
+
+$('connectBtn').onclick=async()=>{
+  if(mode==='serial'){ await stop(); return; }
+  if(!('serial' in navigator)){
+    alert('This browser can’t connect to USB devices.\n\nOpen this page in Chrome, Edge, or Brave on a desktop computer (over https:// or localhost).');
+    return;
+  }
+  let p;
+  try{ p=await navigator.serial.requestPort(); }
+  catch(e){ return; }                       // user closed the port picker — not an error
+  try{ await p.open({baudRate:115200}); }
+  catch(e){
+    alert('Couldn’t open that port:\n'+e.message+'\n\nClose the Arduino IDE / any Serial Monitor using it, unplug & replug the board, then try Connect again.');
+    return;
+  }
+  port=p; resetStream(); setMode('serial'); streamStart=performance.now(); lastLineTime=performance.now();
+  try{
+    const dec=new TextDecoderStream(); port.readable.pipeTo(dec.writable); reader=dec.readable.getReader();
+    running=true; let buf='';
+    while(running){ const{value,done}=await reader.read(); if(done)break; if(value&&value.length){lastByteTime=performance.now();} buf+=value; const lines=buf.split('\n'); buf=lines.pop(); for(const l of lines) parse(l.trim()); }
+  }catch(e){ /* device unplugged / stream lost — degrade quietly to NOT CONNECTED, no scary popup */ }
+  await stop();
+};
+async function stop(){running=false;try{if(reader)await reader.cancel();}catch(e){}try{if(port)await port.close();}catch(e){}reader=port=null;setMode('off');resetStream();}
+
+function resetStream(){
+  rawDisp.fill(480);baseDisp.fill(480);acDisp.fill(0);radiusArr.fill(0);
+  sigRing.fill(480);ringPos=0;sampleCount=0;sig3s.fill(480);s3pos=0;
+  respWin.length=0;respSum=0;respDC=480;respAccum=0;respAccumN=0;nSamp=0;
+  beatEvents.length=0;ibiHist.length=0;ampHist.length=0;beatTimes.length=0;lastBeatSamp=-1;lastBeatTime=0;
+  swAcSm=0;swEnv=1;swArmed=true;swLastBeatN=-1;swCycPk=-1e9;swCycMin=1e9;swBpm=0;swIbi=0;swAmp=0;swInsideUntilN=-1;swIbiHist.length=0;swBpmLast=0;senBpmLast=0;
+  dispRaw.length=0;dispBase.length=0;dispBeat.length=0;dispBaseEMA=480;pendingBeat=false;decimCnt=0;totalRx=0;totalBeats=0;dirtyTrace=false;lastByteTime=0;gotValidLine=false;
+  fftBar.fill(0);fftPeak.fill(0);fftTarget.fill(0);spectro.length=0;spectroEv.length=0;rowHadBeat=false;
+  pulseAmpS=40;ampRefHero=60;
+  bpRiiv.init=bpRiav.init=bpRsa.init=false;znRiiv.init=znRiav.init=znRsa.init=false;
+  riivZHist.length=0;riavZHist.length=0;rsaZHist.length=0;rHist.length=0;rsaBpHist.length=0;rrHist8.length=0;respTrace.length=0;
+  rhoRbar=0;rhoAbar=0;signA=0;wR=0.4;wA=0;wS=0;
+  bsState='RISING';runPeak=-1e9;runTrough=1e9;tExt=0;ampEnv=0.6;recInit=false;rmsRsq=1;dRema=0;drsq=1;Rprev=0;phi=0;
+  shortR2=0;longR2=0;labelAgree.length=0;breathHold=false;
+  curSnr=null;B=0;ratePct=0;phasePct=0;SQI=0;sqiRaw=0;M=0;sqiBand=0;SystemConf=0;sysBarVal=0;
+  sqiRawRing.length=0;sqiDispRing.length=0;
+  histBPM.length=0;histIBI.length=0;histRR.length=0;histRSA.length=0;histAMP.length=0;
+  latestBpm=0;latestIbi=0;latestBeat=0;latestInside=0;latestSig=480;latestAmp=null;rawLine='';
+}
+function setMode(m){
+  mode=m;const dot=$('statusDot'),txt=$('statusText'),cb=$('connectBtn');
+  if(m==='serial'){dot.style.background=COL.green;dot.classList.add('blink');txt.textContent='● LIVE';cb.textContent='Disconnect';}
+  else{dot.style.background=COL.border;dot.classList.remove('blink');txt.textContent='NOT CONNECTED';cb.textContent='Connect';}
+}
+
+/* Browser/secure-context guard — for testers who open the dashboard URL directly */
+(function(){
+  const w=$('dashWarn'); if(!w) return;
+  const secure=location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  if(!secure){ w.style.display='block'; w.innerHTML='⚠ Open the <b>https://</b> link (or localhost) — <b>Connect</b> only works on a secure page.'; }
+  else if(!('serial' in navigator)){ w.style.display='block'; w.innerHTML='⚠ This browser can’t connect to USB devices. Use <b>Chrome, Edge, or Brave on a desktop</b> — phones, Safari, and Firefox won’t work. <a href="./index.html" style="color:var(--amber)">← back to setup</a>'; }
+})();
+
+/* Live data only — nothing animates until the board is connected and streaming. */
+</script>
+</body>
+</html>

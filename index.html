@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BreathRate · Tester Setup</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
+<style>
+  :root{
+    --bg:#0c1017; --panel:#161b22; --panel2:#0c1017; --border:#30363d; --grid:#21262d;
+    --ink:#c9d1d9; --label:#8b949e; --red:#ff7b72; --green:#7ee787; --blue:#58a6ff; --purple:#d2a8ff; --amber:#e3b341;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'SFMono-Regular',Consolas,Menlo,monospace;
+       line-height:1.6;padding:28px 18px 60px}
+  .wrap{max-width:860px;margin:0 auto}
+  a{color:var(--blue)}
+  h1{font-size:26px;margin:0;color:var(--blue);font-weight:700}
+  h2{font-size:15px;margin:0 0 10px;font-weight:700}
+  .sub{color:var(--label);font-size:13px;margin-top:4px}
+  .hero{display:flex;align-items:center;gap:16px;margin-bottom:8px}
+  .hero .heart{font-size:40px;color:var(--red)}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;margin-top:18px}
+  .step{display:flex;gap:16px}
+  .num{flex:none;width:34px;height:34px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);
+       display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green)}
+  .step .body{flex:1}
+  .req{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+  .chip{font-size:12px;padding:6px 11px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);color:var(--label)}
+  .chip b{color:var(--ink)}
+  .btn{display:inline-block;padding:13px 22px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;
+       border:1px solid var(--border);background:var(--panel2);color:var(--ink);font-family:inherit;text-decoration:none}
+  .btn.primary{background:var(--green);color:#0c1017;border-color:var(--green)}
+  .btn.flash{background:var(--amber);color:#0c1017;border-color:var(--amber);font-size:16px}
+  .muted{color:var(--label);font-size:12px}
+  .warn{background:rgba(227,179,65,.12);border:1px solid var(--amber);color:var(--amber);border-radius:10px;
+        padding:12px 16px;font-size:13px;margin-top:18px;display:none}
+  table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px}
+  td{padding:5px 10px;border-bottom:1px solid var(--grid)}
+  td:first-child{color:var(--label);width:140px}
+  code{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;color:var(--green);font-size:12px}
+  details{margin-top:10px}summary{cursor:pointer;color:var(--blue);font-size:13px}
+  details p,details li{font-size:13px;color:var(--label)}
+  footer{margin-top:30px;font-size:12px;color:var(--label);line-height:1.8;border-top:1px solid var(--grid);padding-top:16px}
+  .pill{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;border:1px solid var(--green);color:var(--green);margin-left:8px}
+  /* codename TRON — neon-grid glow */
+  .metarow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .codename{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+    color:#7df9ff;border:1px solid #2bd6e6;border-radius:6px;padding:5px 12px;background:rgba(45,214,230,.07);
+    box-shadow:0 0 14px rgba(45,214,230,.4),inset 0 0 10px rgba(45,214,230,.12);text-shadow:0 0 8px rgba(125,249,255,.8);
+    animation:tron 3.2s ease-in-out infinite}
+  @keyframes tron{50%{box-shadow:0 0 22px rgba(45,214,230,.7),inset 0 0 14px rgba(45,214,230,.2)}}
+  .pubdate{font-size:11px;color:var(--label);letter-spacing:.04em}
+  .counter{margin-top:26px;text-align:center;font-size:12px;color:var(--label);letter-spacing:.05em}
+  .counter b{color:#7df9ff;text-shadow:0 0 8px rgba(125,249,255,.6)}
+  /* board option labels + Arduino code block */
+  .opt{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--purple);
+       border-top:1px solid var(--grid);padding-top:16px;margin-top:20px}
+  .opt:first-of-type{border-top:none;padding-top:0;margin-top:0;color:var(--green)}
+  .ol-terse{margin:6px 0 0;padding-left:20px}
+  .ol-terse li{font-size:13px;color:var(--label);margin:3px 0}
+  .codewrap{position:relative;margin-top:12px}
+  .codewrap pre{margin:0;background:#0a0d12;border:1px solid var(--border);border-radius:10px;padding:14px;
+    overflow:auto;max-height:300px;font-size:12.5px;line-height:1.55}
+  .codewrap code{color:#9fe0a6;font-family:'SFMono-Regular',Consolas,Menlo,monospace;white-space:pre}
+  .copybtn{position:absolute;top:9px;right:9px;font-size:11px;font-weight:700;padding:6px 12px;border-radius:7px;
+    border:1px solid var(--border);background:var(--panel);color:var(--ink);cursor:pointer;font-family:inherit}
+  .copybtn.ok{border-color:var(--green);color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <span class="heart">&#9829;</span>
+    <div>
+      <h1>BreathRate · Tester Setup</h1>
+      <div class="sub">Set up a <b>XIAO ESP32-S3</b> (one-click flash) or any <b>Arduino</b> (copy &amp; upload), then watch your live heartbeat &amp; breathing right in the browser.</div>
+      <div class="metarow">
+        <span class="codename">⬡ Codename · Tron</span>
+        <span class="pubdate">Released 2026-06-19</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="browserWarn" class="warn"></div>
+
+  <!-- STEP 1 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="body">
+        <h2>What you need <span class="pill">2 min</span></h2>
+        <div class="req">
+          <span class="chip"><b>Chrome, Edge, or Brave</b> on desktop (not Safari/Firefox/mobile)</span>
+          <span class="chip">A <b>data</b> USB-C cable</span>
+          <span class="chip"><b>XIAO ESP32-S3</b> + PulseSensor</span>
+        </div>
+        <h2 style="margin-top:18px">Wiring</h2>
+        <table>
+          <tr><td>PulseSensor Signal</td><td><code>→ GPIO1</code> (A0 / D0)</td></tr>
+          <tr><td>PulseSensor +</td><td><code>→ 3V3</code></td></tr>
+          <tr><td>PulseSensor −</td><td><code>→ GND</code></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">2</div>
+      <div class="body">
+        <h2>Install the firmware <span class="muted">— pick your board, one time</span></h2>
+
+        <div class="opt">⬡ XIAO ESP32-S3 — one-click flash</div>
+        <p class="muted" style="margin:6px 0 12px">Plug in the XIAO, click below, pick its port (e.g. <code>usbmodem…</code>). ~30 s. Already flashed? Skip to step 3.</p>
+        <esp-web-install-button manifest="./firmware/manifest.json">
+          <button slot="activate" class="btn flash">⚡ Flash my XIAO</button>
+          <span slot="unsupported" class="muted">⚠ This browser can’t flash — open in <b>Chrome, Edge, or Brave on desktop</b>.</span>
+          <span slot="not-allowed" class="muted">⚠ Flashing needs the <b>https://</b> link (not a local file).</span>
+        </esp-web-install-button>
+        <p class="muted" style="font-size:12px;margin-top:8px">One-click flash is for the <b>XIAO ESP32-S3</b> only. A different ESP32 (C3 / S2 / classic) shows a “chip doesn’t match” error — use the <b>Arduino · copy &amp; upload</b> path below instead.</p>
+        <details>
+          <summary>Can’t connect? Hold-BOOT trick &amp; tips</summary>
+          <ul>
+            <li>If the port doesn’t appear or upload fails: hold <b>BOOT</b>, tap <b>RESET</b>, release <b>BOOT</b>, then retry.</li>
+            <li>Close the Arduino IDE / any Serial Monitor first — only one program can hold the port.</li>
+            <li>Use a cable that carries data (some are charge-only). First install offers to <b>erase</b> — that’s fine.</li>
+            <li><b>No port in the list?</b> Almost always a charge-only cable, or the board needs the hold-BOOT reset above.</li>
+          </ul>
+        </details>
+
+        <div class="opt">▦ Arduino (Uno · Nano · Mega · Leonardo…) — copy &amp; upload</div>
+        <p class="muted" style="margin:6px 0 8px">Arduino boards can’t flash from the browser — upload once with the Arduino IDE. After that it connects to the dashboard <b>exactly like the ESP32</b> (same 6-field stream @ 115200).</p>
+        <ol class="ol-terse">
+          <li>Arduino IDE → <b>Tools ▸ Manage Libraries</b> → install <b>“PulseSensor Playground”</b>.</li>
+          <li><b>Copy</b> the sketch → new sketch → select your <b>Board</b> &amp; <b>Port</b> → <b>Upload</b>.</li>
+          <li>Wiring: <code>Signal → A0</code> · <code>− → GND</code> · <code>+ → 5V</code> on 5 V boards (Uno/Nano/Mega) <b>or</b> <code>3V3</code> on 3.3 V boards (powering a 3.3 V board’s sensor from 5 V clips the signal).</li>
+          <li>Back here → step 3 → <b>Connect</b>.</li>
+        </ol>
+        <div class="codewrap">
+          <button class="copybtn" id="copyBtn">📋 Copy</button>
+          <pre><code id="arduinoCode"></code></pre>
+        </div>
+        <p class="muted" style="margin-top:8px;font-size:12px">…or <a id="inoLink" href="./PulseSensor_WebSerial_Plus.ino" download="PulseSensor_WebSerial_Plus.ino">download the .ino</a> (identical to the code above). (Same sketch runs on the XIAO too.)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="panel">
+    <div class="step">
+      <div class="num">3</div>
+      <div class="body">
+        <h2>See it live</h2>
+        <p class="muted" style="margin:2px 0 14px">Open the dashboard, click <b>Connect</b>, and pick the <b>same port</b> — you’ll be asked to choose it a second time, and that’s normal (the dashboard connects independently of the flash step). Rest a finger on the sensor: <b>heartbeat shows in a few seconds; breathing detection locks in after ~30–60 s</b> of steady breathing.</p>
+        <a class="btn primary" href="./dashboard.html">Open Live Dashboard →</a>
+        <p class="muted" style="margin-top:14px">Tip: in the dashboard, press <b>🫁 Pace</b> and breathe with the guide (~6/min) to light up the 4-point validator.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>BreathRate — cardiorespiratory signal processing, D. John Doyle, MD, PhD. Heartbeat &amp; breathing are derived in your browser from one optical sensor. <b>Live data only — no simulation.</b></p>
+    <p><b>Your privacy:</b> flashing replaces the board’s program (it’ll prompt to erase — expected). Your heartbeat &amp; breathing are processed <b>only in your browser and never uploaded</b>. The only outside calls are the firmware-flash tool’s CDN and an anonymous visit counter.</p>
+    <p>This is a research/biofeedback tester tool, <b>not a medical device</b>. Web Serial flashing &amp; connection require a Chromium browser on desktop over HTTPS.</p>
+  </footer>
+
+  <div class="counter">◉ <b id="visitCount">…</b> visits · <span style="color:#7df9ff">TRON</span></div>
+
+</div>
+
+<script>
+  // Friendly guardrails so testers aren't stuck on a blank flash button
+  (function(){
+    const w=document.getElementById('browserWarn');
+    const secure = location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1';
+    const hasSerial = 'serial' in navigator;
+    if(!secure){ w.style.display='block'; w.innerHTML='⚠ This page is open over <b>'+location.protocol+'</b>. Flashing &amp; Connect only work over <b>https://</b> (or localhost). Use the hosted https link.'; }
+    else if(!hasSerial){ w.style.display='block'; w.innerHTML='⚠ This browser has no Web Serial. Open in <b>Chrome, Edge, or Brave on desktop</b> to flash and connect.'; }
+    // If the flash component never loads (CDN blocked / offline / ad-blocker), say so instead of a dead button.
+    else setTimeout(()=>{ if(!customElements.get('esp-web-install-button') && w.style.display!=='block'){
+      w.style.display='block'; w.innerHTML='⚠ The one-click flash tool didn’t load (network or ad-blocker). Refresh the page — or use the <b>Arduino · copy &amp; upload</b> path below, which needs no extra tool.'; } }, 6000);
+  })();
+
+  // Visitor counter — free no-signup hit counter (Abacus / countapi-compatible).
+  // Counts one hit per browser session; degrades to "—" if the service is unreachable.
+  (function(){
+    const el=document.getElementById('visitCount'); if(!el) return;
+    const NS='breathrate-tron', KEY='visits', BASE='https://abacus.jasoncameron.dev';
+    const firstThisSession=!sessionStorage.getItem('br_counted');
+    fetch(`${BASE}/${firstThisSession?'hit':'get'}/${NS}/${KEY}`)
+      .then(r=>r.json())
+      .then(d=>{ sessionStorage.setItem('br_counted','1');
+        if(d&&typeof d.value==='number') el.textContent=d.value.toLocaleString();
+        else document.querySelector('.counter').style.display='none'; })
+      .catch(()=>{ const c=document.querySelector('.counter'); if(c) c.style.display='none'; });  // hide rather than show a broken "—"
+  })();
+
+  // Arduino sketch — shown for copy/paste (identical to the firmware the XIAO runs)
+  const ARDUINO_CODE = `// BreathRate firmware — streams "signal,bpm,ibi,beat,amp,inside" for the web dashboard.
+// Works on the XIAO ESP32-S3 AND on classic Arduino boards (Uno, Nano, Mega, Leonardo…).
+#include <PulseSensorPlayground.h>
+
+PulseSensorPlayground pulseSensor;
+
+// PulseSensor Signal -> analog pin (auto-selected per board)
+#if defined(ESP32)
+  const int PULSE_PIN = 1;           // XIAO ESP32-S3: GPIO1 (A0 / D0)
+#else
+  const int PULSE_PIN = A0;          // classic Arduino: A0
+#endif
+const int THRESHOLD  = 550;          // library beat threshold, 10-bit scale
+
+const uint32_t SAMPLE_HZ = 100;      // steady 100 Hz, micros()-paced
+const uint32_t SAMPLE_US = 1000000UL / SAMPLE_HZ;
+uint32_t nextSampleUs = 0;
+char     line[40];
+
+void setup() {
+  Serial.begin(115200);
+  delay(800);
+#if defined(ESP32)
+  analogReadResolution(10);          // 0-1023 (AVR Arduino is 10-bit by default)
+#endif
+  pulseSensor.analogInput(PULSE_PIN);
+  pulseSensor.setThreshold(THRESHOLD);
+  pulseSensor.begin();
+  nextSampleUs = micros();
+}
+
+void loop() {
+  uint32_t now = micros();
+  if ((int32_t)(now - nextSampleUs) < 0) return;
+  nextSampleUs += SAMPLE_US;
+  if ((int32_t)(micros() - nextSampleUs) > (int32_t)SAMPLE_US) nextSampleUs = micros() + SAMPLE_US;
+
+  int  signal = pulseSensor.getLatestSample();
+  int  bpm    = pulseSensor.getBeatsPerMinute();
+  int  ibi    = pulseSensor.getInterBeatIntervalMs();
+  bool beat   = pulseSensor.sawStartOfBeat();
+  int  amp    = pulseSensor.getPulseAmplitude();
+  bool inside = pulseSensor.isInsideBeat();
+
+  // 6-field CSV: signal,bpm,ibi,beat,amp,inside
+  int n = snprintf(line, sizeof(line), "%d,%d,%d,%d,%d,%d\\n",
+                   signal, bpm, ibi, beat ? 1 : 0, amp, inside ? 1 : 0);
+  Serial.write((const uint8_t*)line, n);
+}
+`;
+  (function(){
+    const el=document.getElementById('arduinoCode'); if(el) el.textContent=ARDUINO_CODE;
+    // make "download .ino" come from the SAME string as the copy block — one source of truth, can't drift
+    const dl=document.getElementById('inoLink');
+    if(dl){ try{ dl.href=URL.createObjectURL(new Blob([ARDUINO_CODE],{type:'text/plain'})); }catch(e){} }
+    const btn=document.getElementById('copyBtn'); if(!btn) return;
+    btn.onclick=()=>{
+      const done=()=>{btn.textContent='✓ Copied';btn.classList.add('ok');setTimeout(()=>{btn.textContent='📋 Copy';btn.classList.remove('ok');},1600);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(ARDUINO_CODE).then(done).catch(selectFallback); }
+      else selectFallback();
+      function selectFallback(){ const r=document.createRange(); r.selectNodeContents(el); const s=getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent='press ⌘/Ctrl-C'; }
+    };
+  })();
+</script>
+</body>
+</html>
