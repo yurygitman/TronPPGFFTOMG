@@ -188,7 +188,7 @@
   // Counts one hit per browser session; degrades to "—" if the service is unreachable.
   (function(){
     const el=document.getElementById('visitCount'); if(!el) return;
-    const NS='breathrate-tron', KEY='visits', BASE='https://abacus.jasoncameron.dev';
+    const NS='tronppgfftomg', KEY='visits', BASE='https://abacus.jasoncameron.dev';
     const firstThisSession=!sessionStorage.getItem('br_counted');
     fetch(`${BASE}/${firstThisSession?'hit':'get'}/${NS}/${KEY}`)
       .then(r=>r.json())
